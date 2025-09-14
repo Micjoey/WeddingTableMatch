@@ -17,50 +17,49 @@ def generate_sample_wedding_csvs(downloads_dir=None):
 
     # Sample data
     guests = [
-        guests = [
-            ["id", "name"],
-            ["1", "Alice"],
-            ["2", "Bob"],
-            ["3", "Charlie"],
-            ["4", "Diana"],
-            ["5", "Eve"],
-            ["6", "Frank"],
-            ["7", "Grace"],
-            ["8", "Hank"],
-            ["9", "Ivy"],
-            ["10", "Jack"],
-            ["11", "Karen"],
-            ["12", "Leo"],
-            ["13", "Mona"],
-            ["14", "Nina"],
-            ["15", "Oscar"],
-            ["16", "Paul"],
-            ["17", "Quinn"],
-            ["18", "Rita"],
-            ["19", "Sam"],
-            ["20", "Tina"],
-        ]
-        relationships = [
-            ["guest1_id", "guest2_id", "relationship"],
-            ["1", "2", "friends"],
-            ["1", "3", "friends"],
-            ["2", "4", "conflict"],
-            ["3", "5", "friends"],
-            ["4", "6", "friends"],
-            ["5", "7", "conflict"],
-            ["6", "8", "friends"],
-            ["7", "9", "friends"],
-            ["8", "10", "conflict"],
-            ["9", "11", "friends"],
-        ]
-        tables = [
-            ["name", "capacity"],
-            ["A", "4"],
-            ["B", "4"],
-            ["C", "4"],
-            ["D", "4"],
-            ["E", "4"],
-        ]
+        ["id", "name"],
+        ["1", "Alice"],
+        ["2", "Bob"],
+        ["3", "Charlie"],
+        ["4", "Diana"],
+        ["5", "Eve"],
+        ["6", "Frank"],
+        ["7", "Grace"],
+        ["8", "Hank"],
+        ["9", "Ivy"],
+        ["10", "Jack"],
+        ["11", "Karen"],
+        ["12", "Leo"],
+        ["13", "Mona"],
+        ["14", "Nina"],
+        ["15", "Oscar"],
+        ["16", "Paul"],
+        ["17", "Quinn"],
+        ["18", "Rita"],
+        ["19", "Sam"],
+        ["20", "Tina"],
+    ]
+    relationships = [
+        ["guest1_id", "guest2_id", "relationship"],
+        ["1", "2", "friends"],
+        ["1", "3", "friends"],
+        ["2", "4", "conflict"],
+        ["3", "5", "friends"],
+        ["4", "6", "friends"],
+        ["5", "7", "conflict"],
+        ["6", "8", "friends"],
+        ["7", "9", "friends"],
+        ["8", "10", "conflict"],
+        ["9", "11", "friends"],
+    ]
+    tables = [
+        ["name", "capacity"],
+        ["A", "4"],
+        ["B", "4"],
+        ["C", "4"],
+        ["D", "4"],
+        ["E", "4"],
+    ]
 
     # Write CSVs
     with open(guests_path, "w", newline="") as f:

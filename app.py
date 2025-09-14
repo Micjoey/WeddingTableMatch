@@ -51,9 +51,12 @@ def validate_relationship_guests(guests_df, rel_df):
         return False
     return True
 
+
 # Preview uploaded data with validation
 guests_df = rel_df = tables_df = None
 guests_valid = rel_valid = tables_valid = False
+rel_guests_ok = True
+
 if _guests_file is not None:
     guests_df = pd.read_csv(_guests_file)
     st.subheader("Guests preview")
@@ -70,16 +73,15 @@ if _tables_file is not None:
     st.dataframe(tables_df)
     tables_valid = validate_columns(tables_df, ["name", "capacity"], "tables.csv")
 
+# Validate relationships reference only valid guests as soon as both files are uploaded and valid
+if guests_df is not None and rel_df is not None and guests_valid and rel_valid:
+    rel_guests_ok = validate_relationship_guests(guests_df, rel_df)
+
 # Solve when all files are valid and button pressed
 
 # Only allow running if all files are valid and relationships reference valid guests
-if _guests_file and _relationships_file and _tables_file and guests_valid and rel_valid and tables_valid:
-    # Validate relationships reference only valid guests
-    rel_guests_ok = True
-    if guests_df is not None and rel_df is not None:
-        rel_guests_ok = validate_relationship_guests(guests_df, rel_df)
-
-    if rel_guests_ok and st.button("Run solver"):
+if _guests_file and _relationships_file and _tables_file and guests_valid and rel_valid and tables_valid and rel_guests_ok:
+    if st.button("Run solver"):
         # Reset file pointers before re-reading
         _guests_file.seek(0)
         _relationships_file.seek(0)
