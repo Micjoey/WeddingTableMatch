@@ -104,11 +104,14 @@ class SeatingModel:
 
     # ------------------------------------------------------------------
     def solve(self) -> Dict[str, str]:
-        """Assign guests to tables using a relationship aware heuristic."""
+        """Assign guests to tables using a relationship aware heuristic.
+        If strict constraints fail, allow conflicts as a last resort."""
         assignments: Dict[str, str] = {}
         table_slots = {t.name: t.capacity for t in self.tables}
         groups = self._build_groups()
 
+        # First pass: strict (no conflicts allowed)
+        unassigned_groups = []
         for group in groups:
             best_table = None
             best_score = -1
@@ -118,7 +121,34 @@ class SeatingModel:
                     best_table = table.name
                     best_score = score
             if best_table is None:
-                raise ValueError("No valid table for group: " + ", ".join(group))
+                unassigned_groups.append(group)
+            else:
+                for member in group:
+                    assignments[member] = best_table
+                    table_slots[best_table] -= 1
+
+        # Second pass: relax constraints for unassigned groups (allow conflicts if needed)
+        for group in unassigned_groups:
+            best_table = None
+            best_score = -1
+            for table in self.tables:
+                # Only check capacity, ignore must_separate/avoid
+                if table_slots[table.name] < len(group):
+                    continue
+                # Score as before
+                score = 0
+                for member in group:
+                    for other, other_table in assignments.items():
+                        if other_table != table.name:
+                            continue
+                        rel = self.get_relationship(member, other)
+                        if rel.relation == "know":
+                            score += rel.strength
+                if score > best_score:
+                    best_table = table.name
+                    best_score = score
+            if best_table is None:
+                raise ValueError("No valid table for group (even with relaxed constraints): " + ", ".join(group))
             for member in group:
                 assignments[member] = best_table
                 table_slots[best_table] -= 1

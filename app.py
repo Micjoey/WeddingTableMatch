@@ -8,6 +8,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import pandas as pd
 import streamlit as st
+import networkx as nx
+from pyvis.network import Network
+import streamlit.components.v1 as components
 
 from wedding_table_match.csv_loader import (
     load_guests,
@@ -52,7 +55,6 @@ def validate_columns(df: pd.DataFrame, required: list[str], file_label: str) -> 
 def validate_relationship_guests(guests_df: pd.DataFrame, rel_df: pd.DataFrame) -> bool:
     # Force string compare so 1 and "1" match
     guest_ids = set(guests_df["id"].astype(str))
-    st.write("[DEBUG] Guest IDs:", sorted(guest_ids))
     rel_ids = set()
     bad_rows = []
     for idx, row in rel_df.iterrows():
@@ -62,7 +64,6 @@ def validate_relationship_guests(guests_df: pd.DataFrame, rel_df: pd.DataFrame) 
         rel_ids.add(b)
         if a not in guest_ids or b not in guest_ids:
             bad_rows.append((idx, a, b))
-    st.write("[DEBUG] Relationship referenced IDs:", sorted(rel_ids))
     if bad_rows:
         st.error(
             "Error: The following relationships reference unknown guest IDs: "
@@ -167,3 +168,9 @@ if run_clicked and not run_disabled:
     st.download_button(
         "Download assignments as CSV", csv_bytes, file_name="assignments.csv"
     )
+
+    # --- Mind Map Visualization ---
+    st.subheader("Assignment Mind Map")
+    from generate_assignment_mind_map import generate_assignment_mind_map
+    html = generate_assignment_mind_map(assignments, guests, relationships)
+    components.html(html, height=600, scrolling=True)
