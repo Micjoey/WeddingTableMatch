@@ -60,6 +60,15 @@ if _guests_file and _relationships_file and _tables_file:
         st.subheader("Assignments")
         st.dataframe(result_df)
 
+        # Display a grouped summary so each table's guests are easy to read
+        grouped_df = (
+            result_df.groupby("table")["guest"]
+            .apply(lambda g: ", ".join(g))
+            .reset_index(name="guests")
+        )
+        st.subheader("Guests per table")
+        st.dataframe(grouped_df)
+
         csv_bytes = result_df.to_csv(index=False).encode("utf-8")
         st.download_button(
             "Download assignments as CSV", csv_bytes, file_name="assignments.csv"
