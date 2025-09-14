@@ -13,7 +13,9 @@ def _ensure_path(path: Path | str) -> Path:
     return Path(path)
 
 
-def load_guests(path: Path | str | Iterable[str]) -> List[Guest]:
+from typing import IO, Any
+
+def load_guests(path: Path | str | IO[Any]) -> List[Guest]:
     """Load guests from ``guests.csv``.
 
     Validates that any ``must_with`` and ``must_separate`` references exist.
@@ -44,7 +46,7 @@ def load_guests(path: Path | str | Iterable[str]) -> List[Guest]:
     return guests
 
 
-def load_tables(path: Path | str) -> List[Table]:
+def load_tables(path: Path | str | IO[Any]) -> List[Table]:
     """Load table definitions."""
     df = pd.read_csv(path)
     tables: List[Table] = []
@@ -59,7 +61,7 @@ def load_tables(path: Path | str) -> List[Table]:
     return tables
 
 
-def load_relationships(path: Path | str, guest_names: set[str] | None = None) -> List[Relationship]:
+def load_relationships(path: Path | str | IO[Any], guest_names: set[str] | None = None) -> List[Relationship]:
     """Load relationships between guests.
 
     If ``guest_names`` is provided it validates that both endpoints exist.
