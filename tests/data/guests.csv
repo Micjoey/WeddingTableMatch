@@ -4,4 +4,4 @@ Bob,true,man,woman|nonbinary,1,0,1,,,
 Cara,true,woman,man|nonbinary,0,1,1,,,
 Diego,false,man,,0,0,1,Alice,
 Eve,true,nonbinary,man|woman,1,0,1,,Bob
-Frank,true,man,woman,0,1,1,,Cara
+Frank,true,man,woman,0,1,1,,,

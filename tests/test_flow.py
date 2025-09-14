@@ -26,3 +26,18 @@ def test_full_flow():
         counts[table_name] = counts.get(table_name, 0) + 1
     for t in tables:
         assert counts.get(t.name, 0) <= t.capacity
+
+    # must_with and must_separate respected
+    for g in guests:
+        for other in g.must_with:
+            assert assignments[g.name] == assignments[other]
+        for other in g.must_separate:
+            assert assignments[g.name] != assignments[other]
+
+    # avoid relationships enforced
+    for r in relationships:
+        if r.relation == "avoid":
+            assert assignments[r.a] != assignments[r.b]
+
+    # known friends prefer sitting together
+    assert assignments["Eve"] == assignments["Frank"]

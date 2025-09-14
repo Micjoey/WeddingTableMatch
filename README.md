@@ -1,7 +1,8 @@
 # WeddingTableMatch
 
 A small demo project showing a constraint-based approach to wedding seating.
-The current solver simply assigns guests to tables in a round-robin fashion.
+The solver uses a lightweight heuristic that keeps friends together and
+avoids known conflicts when possible.
 
 ## Quickstart
 
