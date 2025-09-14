@@ -1,0 +1,6 @@
+a,b,relation,strength,notes
+Alice,Bob,know,3,work friends
+Alice,Cara,know,2,college
+Cara,Diego,avoid,0,prior conflict
+Eve,Frank,know,2,mutual friends
+Bob,Eve,neutral,0,
