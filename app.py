@@ -24,23 +24,62 @@ _guests_file = st.file_uploader("Guests CSV", type="csv")
 _relationships_file = st.file_uploader("Relationships CSV", type="csv")
 _tables_file = st.file_uploader("Tables CSV", type="csv")
 
-# Preview uploaded data
+
+# File validation helpers
+
+def validate_columns(df, required, file_label):
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        st.error(f"Error in {file_label}: missing columns: {', '.join(missing)}")
+        return False
+    return True
+
+def validate_relationship_guests(guests_df, rel_df):
+    guest_ids = set(str(x) for x in guests_df["id"].astype(str))
+    bad_rows = []
+    for idx, row in rel_df.iterrows():
+        a = str(row["guest1_id"])
+        b = str(row["guest2_id"])
+        if a not in guest_ids or b not in guest_ids:
+            bad_rows.append((idx, a, b))
+    if bad_rows:
+        st.error(
+            "Error: The following relationships reference unknown guest IDs: " +
+            ", ".join([f"row {i+2}: {a}, {b}" for i, a, b in bad_rows]) +
+            ". Please check your guests and relationships files."
+        )
+        return False
+    return True
+
+# Preview uploaded data with validation
+guests_df = rel_df = tables_df = None
+guests_valid = rel_valid = tables_valid = False
 if _guests_file is not None:
     guests_df = pd.read_csv(_guests_file)
     st.subheader("Guests preview")
     st.dataframe(guests_df)
+    guests_valid = validate_columns(guests_df, ["id", "name"], "guests.csv")
 if _relationships_file is not None:
     rel_df = pd.read_csv(_relationships_file)
     st.subheader("Relationships preview")
     st.dataframe(rel_df)
+    rel_valid = validate_columns(rel_df, ["guest1_id", "guest2_id", "relationship"], "relationships.csv")
 if _tables_file is not None:
     tables_df = pd.read_csv(_tables_file)
     st.subheader("Tables preview")
     st.dataframe(tables_df)
+    tables_valid = validate_columns(tables_df, ["name", "capacity"], "tables.csv")
 
-# Solve when all files available and button pressed
-if _guests_file and _relationships_file and _tables_file:
-    if st.button("Run solver"):
+# Solve when all files are valid and button pressed
+
+# Only allow running if all files are valid and relationships reference valid guests
+if _guests_file and _relationships_file and _tables_file and guests_valid and rel_valid and tables_valid:
+    # Validate relationships reference only valid guests
+    rel_guests_ok = True
+    if guests_df is not None and rel_df is not None:
+        rel_guests_ok = validate_relationship_guests(guests_df, rel_df)
+
+    if rel_guests_ok and st.button("Run solver"):
         # Reset file pointers before re-reading
         _guests_file.seek(0)
         _relationships_file.seek(0)
