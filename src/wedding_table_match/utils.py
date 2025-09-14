@@ -104,6 +104,11 @@ def generate_sample_wedding_csvs(downloads_dir=None):
         "tables": tables_path,
     }
 
+paths = generate_sample_wedding_csvs()
+print("Sample CSVs generated:")
+for name, path in paths.items():
+    print(f"{name}: {path}")
+
 
 """
 Example usage:
@@ -114,4 +119,6 @@ paths = generate_sample_wedding_csvs()
 print("Sample CSVs generated:")
 for name, path in paths.items():
     print(f"{name}: {path}")
+
+python src/wedding_table_match/utils.py
 """
