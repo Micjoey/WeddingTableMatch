@@ -22,6 +22,7 @@ def load_guests(path: Path | str | Iterable[str]) -> List[Guest]:
     guests: List[Guest] = []
     for _, row in df.iterrows():
         guest = Guest(
+            id=str(row["id"]),
             name=row["name"],
             single=parse_bool(row.get("single", "false")),
             gender_identity=row.get("gender_identity", ""),
@@ -66,10 +67,12 @@ def load_relationships(path: Path | str, guest_names: set[str] | None = None) ->
     df = pd.read_csv(path)
     relationships: List[Relationship] = []
     for _, row in df.iterrows():
-        a = row["guest1_id"]
-        b = row["guest2_id"]
-        if guest_names and (a not in guest_names or b not in guest_names):
-            raise ValueError(f"Relationship references unknown guest: {a}, {b}")
+        a = str(row["guest1_id"]).strip()
+        b = str(row["guest2_id"]).strip()
+        if guest_names:
+            guest_names_stripped = set(str(g).strip() for g in guest_names)
+            if a not in guest_names_stripped or b not in guest_names_stripped:
+                raise ValueError(f"Relationship references unknown guest: {a}, {b}")
         relationships.append(
             Relationship(
                 a=a,
@@ -85,7 +88,7 @@ def load_relationships(path: Path | str, guest_names: set[str] | None = None) ->
 def load_all(guests_path: Path | str, relationships_path: Path | str, tables_path: Path | str):
     """Convenience wrapper returning guests, relationships and tables."""
     guests = load_guests(guests_path)
-    guest_names = {g.name for g in guests}
-    relationships = load_relationships(relationships_path, guest_names)
+    guest_ids = {str(g.id) for g in guests}
+    relationships = load_relationships(relationships_path, guest_ids)
     tables = load_tables(tables_path)
     return guests, relationships, tables

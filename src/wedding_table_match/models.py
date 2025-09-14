@@ -37,6 +37,7 @@ def parse_interested_in(value: object) -> List[str]:
 class Guest:
     """Representation of a wedding guest."""
 
+    id: str
     name: str
     single: bool
     gender_identity: str
