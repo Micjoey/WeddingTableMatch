@@ -17,9 +17,25 @@ from wedding_table_match.csv_loader import (
     load_relationships,
     load_tables,
 )
+from wedding_table_match.models import Table
 from wedding_table_match.solver import SeatingModel
 
+
 st.title("Wedding Table Match")
+
+# --- User Options ---
+st.sidebar.header("Seating Options")
+
+maximize_known = st.sidebar.checkbox("Maximize known guests per table", value=False, help="Try to seat more people who know each other at the same table.")
+min_known = st.sidebar.number_input(
+    "Minimum known people per guest at table",
+    min_value=0,
+    max_value=20,
+    value=0,
+    help="Try to ensure each guest has at least this many people they know at their table (if possible)."
+)
+single_table = st.sidebar.checkbox("Force all guests at one table", value=False, help="Assign everyone to a single table (if capacity allows).")
+group_singles = st.sidebar.checkbox("Group single guests together", value=False, help="Try to seat single guests at the same table(s) if possible.")
 
 
 # File uploaders
@@ -135,7 +151,14 @@ if run_clicked and not run_disabled:
         valid_ids = {str(getattr(g, "id")) for g in guests}
         relationships = load_relationships(_relationships_file, valid_ids)
 
-        model = SeatingModel()
+        # Optionally modify tables/guests based on user options
+        if single_table:
+            # Collapse all tables into one big table (if possible)
+            total_capacity = sum(t.capacity for t in tables)
+            if len(guests) > total_capacity:
+                raise ValueError("Not enough total capacity for all guests at one table.")
+            tables = [Table(name="All", capacity=len(guests), tags=[])]
+    model = SeatingModel(maximize_known=maximize_known, group_singles=group_singles, min_known=min_known)
         model.build(guests, tables, relationships)
         assignments = model.solve()
 

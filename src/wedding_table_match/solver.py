@@ -6,6 +6,7 @@ from typing import Dict, List, Set, Tuple
 from .models import Guest, Table, Relationship
 
 
+
 class SeatingModel:
     """Greedy seating solver that honours simple relationship rules.
 
@@ -14,11 +15,14 @@ class SeatingModel:
     It is intentionally small and easy to understand rather than optimal.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, maximize_known: bool = False, group_singles: bool = False, min_known: int = 0) -> None:
         self.guests: List[Guest] = []
         self.tables: List[Table] = []
         self.relationships: Dict[Tuple[str, str], Relationship] = {}
         self.must_separate: Dict[str, Set[str]] = {}
+        self.maximize_known = maximize_known
+        self.group_singles = group_singles
+        self.min_known = min_known
 
     def build(
         self, guests: List[Guest], tables: List[Table], relationships: List[Relationship]
@@ -84,31 +88,62 @@ class SeatingModel:
         assignments: Dict[str, str],
         table_slots: Dict[str, int],
     ) -> Tuple[bool, int]:
-        """Return (feasible, score) for seating ``group`` at ``table_name``."""
+        """Return (feasible, score) for seating ``group`` at ``table_name``.
+        If min_known > 0, require each member to have at least min_known 'know' relationships at the table (if possible)."""
         if table_slots[table_name] < len(group):
             return False, 0
 
         score = 0
+        table_members = [other for other, t in assignments.items() if t == table_name] + group
         for member in group:
-            for other, other_table in assignments.items():
-                if other_table != table_name:
+            # Check must_separate and avoid
+            for other in table_members:
+                if other == member:
                     continue
                 if other in self.must_separate.get(member, set()):
                     return False, 0
                 rel = self.get_relationship(member, other)
                 if rel.relation == "avoid":
                     return False, 0
-                if rel.relation == "know":
+        # Check min_known constraint
+        if self.min_known > 0:
+            for member in group:
+                known_count = 0
+                for other in table_members:
+                    if other == member:
+                        continue
+                    rel = self.get_relationship(member, other)
+                    if rel.relation == "know":
+                        known_count += 1
+                if known_count < self.min_known:
+                    return False, 0
+        # Scoring
+        for member in group:
+            for other in table_members:
+                if other == member:
+                    continue
+                rel = self.get_relationship(member, other)
+                if self.maximize_known and rel.relation == "know":
                     score += rel.strength
+                elif rel.relation == "know":
+                    score += 1
         return True, score
 
     # ------------------------------------------------------------------
     def solve(self) -> Dict[str, str]:
         """Assign guests to tables using a relationship aware heuristic.
-        If strict constraints fail, allow conflicts as a last resort."""
+        If strict constraints fail, allow conflicts as a last resort.
+        Honors maximize_known and group_singles options."""
         assignments: Dict[str, str] = {}
         table_slots = {t.name: t.capacity for t in self.tables}
         groups = self._build_groups()
+
+        # Optionally group singles together
+        if self.group_singles:
+            singles = [g.name for g in self.guests if getattr(g, 'single', False)]
+            non_singles = [g for g in groups if not any(name in singles for name in g)]
+            if singles:
+                groups = non_singles + [singles]
 
         # First pass: strict (no conflicts allowed)
         unassigned_groups = []
@@ -142,8 +177,10 @@ class SeatingModel:
                         if other_table != table.name:
                             continue
                         rel = self.get_relationship(member, other)
-                        if rel.relation == "know":
+                        if self.maximize_known and rel.relation == "know":
                             score += rel.strength
+                        elif rel.relation == "know":
+                            score += 1
                 if score > best_score:
                     best_table = table.name
                     best_score = score
