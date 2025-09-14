@@ -1,5 +1,11 @@
+
 """Streamlit UI for WeddingTableMatch."""
 from __future__ import annotations
+
+# Add src to sys.path so wedding_table_match can be found
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import pandas as pd
 import streamlit as st

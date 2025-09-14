@@ -66,15 +66,15 @@ def load_relationships(path: Path | str, guest_names: set[str] | None = None) ->
     df = pd.read_csv(path)
     relationships: List[Relationship] = []
     for _, row in df.iterrows():
-        a = row["a"]
-        b = row["b"]
+        a = row["guest1_id"]
+        b = row["guest2_id"]
         if guest_names and (a not in guest_names or b not in guest_names):
             raise ValueError(f"Relationship references unknown guest: {a}, {b}")
         relationships.append(
             Relationship(
                 a=a,
                 b=b,
-                relation=row.get("relation", "neutral"),
+                relation=row.get("relationship", "neutral"),
                 strength=int(row.get("strength", 0)),
                 notes=row.get("notes", ""),
             )

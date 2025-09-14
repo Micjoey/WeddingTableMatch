@@ -79,7 +79,7 @@ def generate_sample_wedding_csvs(downloads_dir=None):
         ["16", "20", "conflict"],
     ]
     tables = [
-        ["table_id", "capacity"],
+        ["name", "capacity"],
         ["A", "4"],
         ["B", "4"],
         ["C", "4"],
