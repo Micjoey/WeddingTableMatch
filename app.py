@@ -168,7 +168,7 @@ min_known = st.sidebar.number_input(
     "Minimum known people per guest at table",
     min_value=0,
     max_value=20,
-    value=0,
+    value=2,
     help="Try to ensure each guest has at least this many known people at their table.",
 )
 single_table = st.sidebar.checkbox(
@@ -178,7 +178,7 @@ single_table = st.sidebar.checkbox(
 )
 group_singles = st.sidebar.checkbox(
     "Group single guests together",
-    value=False,
+    value=True,
     help="Try to seat single guests at the same table if possible.",
 )
 group_by_meal_preference = st.sidebar.checkbox(

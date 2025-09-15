@@ -126,14 +126,14 @@ class SeatingModel:
         table_slots: Dict[str, int],
     ) -> Tuple[bool, int]:
         """Return (feasible, score) for seating ``group`` at ``table_name``.
-        If min_known > 0, require each member to have at least min_known 'know' relationships at the table (if possible)."""
+        Uses the full relationship scale for scoring (maximize compatibility)."""
         if table_slots[table_name] < len(group):
             return False, 0
 
         score = 0
         table_members = [other for other, t in assignments.items() if t == table_name] + group
+        # Check must_separate and avoid
         for member in group:
-            # Check must_separate and avoid
             for other in table_members:
                 if other == member:
                     continue
@@ -154,16 +154,21 @@ class SeatingModel:
                         known_count += 1
                 if known_count < self.min_known:
                     return False, 0
-        # Scoring
-        for member in group:
-            for other in table_members:
-                if other == member:
+        # Scoring: use full relationship scale
+        relation_scale = {
+            'best friend': 5,
+            'friend': 3,
+            'know': 2,
+            'neutral': 0,
+            'avoid': -3,
+            'conflict': -5,
+        }
+        for i, member in enumerate(group):
+            for j, other in enumerate(table_members):
+                if other == member or j <= i:
                     continue
                 rel = self.get_relationship(member, other)
-                if self.maximize_known and rel.relation == "know":
-                    score += rel.strength
-                elif rel.relation == "know":
-                    score += 1
+                score += relation_scale.get(rel.relation, rel.strength if hasattr(rel, 'strength') else 0)
         return True, score
 
     # ------------------------------------------------------------------
