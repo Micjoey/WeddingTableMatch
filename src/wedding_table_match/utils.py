@@ -41,16 +41,19 @@ def generate_sample_wedding_csvs(downloads_dir=None):
     ]
     relationships = [
         ["guest1_id", "guest2_id", "relationship"],
-        ["1", "2", "friends"],
-        ["1", "3", "friends"],
+        ["1", "2", "friend"],
+        ["1", "3", "friend"],
         ["2", "4", "conflict"],
-        ["3", "5", "friends"],
-        ["4", "6", "friends"],
+        ["3", "5", "friend"],
+        ["4", "6", "friend"],
         ["5", "7", "conflict"],
-        ["6", "8", "friends"],
-        ["7", "9", "friends"],
+        ["6", "8", "friend"],
+        ["7", "9", "friend"],
         ["8", "10", "conflict"],
-        ["9", "11", "friends"],
+        ["9", "11", "friend"],
+        ["1", "4", "best friend"],
+        ["2", "3", "avoid"],
+        ["5", "6", "neutral"],
     ]
     tables = [
         ["name", "capacity"],
@@ -94,5 +97,15 @@ print("Sample CSVs generated:")
 for name, path in paths.items():
     print(f"{name}: {path}")
 
-python src/wedding_table_match/utils.py
+# Relationship scale for table grading:
+#   best friend: +5
+#   friend: +3
+#   know: +2
+#   neutral: 0
+#   avoid: -3
+#   conflict: -5
+# Table compatibility is graded A–F based on the average relationship score among all pairs at the table.
+
+# Run with:
+# python src/wedding_table_match/utils.py
 """

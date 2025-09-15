@@ -1,4 +1,15 @@
-"""Relationship aware seating solver."""
+"""
+Relationship aware seating solver.
+
+Relationship scale for table grading:
+    best friend: +5
+    friend: +3
+    know: +2
+    neutral: 0
+    avoid: -3
+    conflict: -5
+Table compatibility is graded A–F based on the average relationship score among all pairs at the table.
+"""
 from __future__ import annotations
 
 from typing import Dict, List, Set, Tuple

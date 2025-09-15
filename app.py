@@ -1,6 +1,59 @@
 """Streamlit UI for WeddingTableMatch with CSV previews and validations."""
 from __future__ import annotations
 
+def compute_table_score_and_singles(guest_names, guests, relationships):
+    # Build lookup for guest id/name to guest object
+    guest_dict = {str(g.id): g for g in guests}
+    name_to_id = {g.name: str(g.id) for g in guests}
+    # Build relationship lookup (a,b) -> numeric score
+    rel_map = {}
+    rel_type_map = {}
+    relation_scale = {
+        'best friend': 5,
+        'friend': 3,
+        'know': 2,
+        'neutral': 0,
+        'avoid': -3,
+        'conflict': -5,
+    }
+    for rel in relationships:
+        a, b = str(rel.a), str(rel.b)
+        rel_type = getattr(rel, 'relation', '')
+        rel_type_map[(a, b)] = rel_type
+        rel_type_map[(b, a)] = rel_type
+        score = relation_scale.get(rel_type, getattr(rel, 'strength', 0))
+        rel_map[(a, b)] = score
+        rel_map[(b, a)] = score
+    # Get all pairs
+    ids = [name_to_id.get(name, name) for name in guest_names]
+    n = len(ids)
+    if n < 2:
+        return 1.0, 0, True  # trivially perfect, 0 singles, no conflicts
+    total = 0
+    max_total = 0
+    has_conflict = False
+    for i in range(n):
+        for j in range(i+1, n):
+            s = rel_map.get((ids[i], ids[j]), 0)
+            rel_type = rel_type_map.get((ids[i], ids[j]), '')
+            if rel_type in ('conflict', 'avoid'):
+                has_conflict = True
+            total += s
+            max_total += 5  # max possible is both are best friends
+    # Count singles
+    single_count = 0
+    for name in guest_names:
+        gid = name_to_id.get(name, name)
+        if gid is None:
+            continue
+        guest = guest_dict.get(str(gid))
+        if guest and getattr(guest, 'single', False):
+            single_count += 1
+    # Score can be negative, so scale to 0-1 for percent
+    percent = (total + max_total) / (2 * max_total) if max_total else 1.0
+    return percent, single_count, has_conflict
+
+
 # Add src to sys.path so wedding_table_match can be found
 import sys
 import os
@@ -246,14 +299,28 @@ if run_clicked and not run_disabled:
         st.subheader("Assignments")
         st.dataframe(result_df, use_container_width=True)
 
-        # Grouped summary per table
-        grouped_df = (
-            result_df.groupby("table")["guest"]
-            .apply(lambda g: ", ".join(g))
-            .reset_index(name="guests")
-        )
+        # Grouped summary per table with score and singles
+        grouped = result_df.groupby("table")["guest"].apply(list).reset_index(name="guests_list")
+        grouped["guests"] = grouped["guests_list"].apply(lambda g: ", ".join(g))
+        def table_stats(g):
+            percent, single_count, _ = compute_table_score_and_singles(g, guests, relationships)
+            percent_val = round(100 * percent)
+            # Letter grade
+            if percent_val >= 90:
+                grade = 'A'
+            elif percent_val >= 80:
+                grade = 'B'
+            elif percent_val >= 70:
+                grade = 'C'
+            elif percent_val >= 60:
+                grade = 'D'
+            else:
+                grade = 'F'
+            return percent_val, grade, single_count
+        grouped[["compatibility %", "grade", "# singles"]] = grouped["guests_list"].apply(lambda g: pd.Series(table_stats(g)))
+        grouped = grouped.drop(columns=["guests_list"])
         st.subheader("Guests per table")
-        st.dataframe(grouped_df, use_container_width=True)
+        st.dataframe(grouped, use_container_width=True)
 
         # Download
         csv_bytes = result_df.to_csv(index=False).encode("utf-8")
