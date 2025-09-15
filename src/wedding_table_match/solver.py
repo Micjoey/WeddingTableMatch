@@ -81,6 +81,7 @@ def grade_tables(stats: List[Dict[str, int | float]]) -> List[Dict[str, int | fl
     return graded
 
 
+# ----------------------------- model -----------------------------
 class SeatingModel:
     """Greedy plus beam search seating solver with relationship awareness."""
 
@@ -89,16 +90,24 @@ class SeatingModel:
         maximize_known: bool = False,
         group_singles: bool = False,
         min_known: int = 0,
+        min_unknown: int = 0,
+        max_unknown: int = 3,
         group_by_meal_preference: bool = False,
     ) -> None:
+        # Inputs
         self.guests: List[Guest] = []
         self.tables: List[Table] = []
         self.relationships: Dict[Tuple[str, str], Relationship] = {}
+        # Hard constraints
         self.must_separate: Dict[str, Set[str]] = {}
+        # Soft preferences
         self.maximize_known = maximize_known
         self.group_singles = group_singles
         self.min_known = min_known
+        self.min_unknown = min_unknown
+        self.max_unknown = max_unknown
         self.group_by_meal_preference = group_by_meal_preference
+        # Id mapping helpers
         self.id_by_name: Dict[str, str] = {}
         self.name_by_id: Dict[str, str] = {}
 
@@ -168,7 +177,7 @@ class SeatingModel:
         return sorted([sorted(members) for members in groups.values()], key=lambda g: (-len(g), g[0]))
 
     def _feasible_with(self, group: List[str], table_name: str, assignments: Dict[str, str], table_slots: Dict[str, int]) -> bool:
-        """Hard checks only."""
+        """Hard checks only: capacity, must_separate, avoid."""
         if table_slots[table_name] < len(group):
             return False
         existing = [name for name, t in assignments.items() if t == table_name]
@@ -181,43 +190,85 @@ class SeatingModel:
                 return False
         return True
 
+    def _count_known_unknown(self, member: str, combined: List[str]) -> tuple[int, int, int]:
+        """Return counts for a given member: (known, neutral, negative)."""
+        known = neutral = negative = 0
+        for other in combined:
+            if other == member:
+                continue
+            v = relation_value(self.get_relationship(member, other))
+            if v > 0:
+                known += 1
+            elif v < 0:
+                negative += 1
+            else:
+                neutral += 1
+        return known, neutral, negative
+
     def _table_delta(self, group: List[str], table_name: str, assignments: Dict[str, str], table_slots: Dict[str, int]) -> int:
-        """Return the change-in-total score if we seat group at table_name."""
+        """Return the change in total score if we seat group at table_name.
+
+        Components:
+        - Pair score delta using categorical values.
+        - Soft bonus if member meets min_known.
+        - Soft bonus if member's neutral count lies within [min_unknown, max_unknown].
+          Penalty if outside. Per guest CSV min_unknown overrides global.
+        """
         existing = [name for name, t in assignments.items() if t == table_name]
         combined = existing + group
 
-        # Old score among existing
-        old_stats = compute_table_stats(existing, self.get_relationship) if len(existing) >= 2 else {"total_score": 0, "pair_count": 0}
-        old_total = old_stats["total_score"]
-
-        # New score among combined
+        # Old and new pair totals
+        old_total = compute_table_stats(existing, self.get_relationship)["total_score"] if len(existing) >= 2 else 0
         new_total = compute_table_stats(combined, self.get_relationship)["total_score"]
-
         delta = int(new_total - old_total)
 
-        # Soft bonus for meeting min_known per guest in the new combined table
-        if self.min_known > 0:
-            bonus = 0
-            for member in group:
-                known_count = 0
-                for other in combined:
-                    if other == member:
-                        continue
-                    if relation_value(self.get_relationship(member, other)) > 0:
-                        known_count += 1
-                if known_count >= self.min_known:
-                    bonus += 10
-            delta += bonus
+        # Soft per guest bonuses and penalties
+        bonus = 0
+        for member in group:
+            # Per guest overrides if provided
+            guest_obj = next((g for g in self.guests if g.name == member), None)
+            g_min_known = self.min_known
+            g_min_unknown = self.min_unknown
+            g_max_unknown = self.max_unknown
+            if guest_obj:
+                if getattr(guest_obj, "min_known", 0) > 0:
+                    g_min_known = guest_obj.min_known
+                # Guest model has min_unknown. No max_unknown field in model, so use global for now.
+                if getattr(guest_obj, "min_unknown", 0) > 0:
+                    g_min_unknown = guest_obj.min_unknown
 
-        return delta
+            known, neutral, negative = self._count_known_unknown(member, combined)
+
+            # Known preference
+            if g_min_known > 0 and known >= g_min_known:
+                bonus += 8  # tuned small to avoid overpowering pair scores
+
+            # Unknown window preference
+            if g_min_unknown == 0 and g_max_unknown == 0:
+                pass
+            else:
+                if g_min_unknown <= neutral <= g_max_unknown:
+                    bonus += 6
+                else:
+                    # Penalize distance from window edges
+                    if neutral < g_min_unknown:
+                        bonus -= 3 * (g_min_unknown - neutral)
+                    if neutral > g_max_unknown:
+                        bonus -= 2 * (neutral - g_max_unknown)
+
+            # Light penalty for too many negatives around a member
+            if negative >= 1:
+                bonus -= 5 * negative
+
+        return delta + bonus
 
     def _optimize_assignments(self, assignments: Dict[str, str], table_slots: Dict[str, int]) -> Dict[str, str]:
-        """Local pair-swap hill climb."""
+        """Local pair swap hill climb that respects hard constraints."""
         improved = True
-        iter_count = 0
-        while improved and iter_count < 10:
+        iters = 0
+        while improved and iters < 10:
             improved = False
-            iter_count += 1
+            iters += 1
             guest_list = list(assignments.keys())
             for i in range(len(guest_list)):
                 for j in range(i + 1, len(guest_list)):
@@ -227,13 +278,14 @@ class SeatingModel:
                         continue
                     new_assign = dict(assignments)
                     new_assign[g1], new_assign[g2] = t2, t1
-                    # recompute deltas around t1 and t2
+                    # Feasibility at both tables
                     group1 = [n for n, t in new_assign.items() if t == t1]
                     group2 = [n for n, t in new_assign.items() if t == t2]
-                    if not self._feasible_with([g for g in group1], t1, {k: v for k, v in new_assign.items() if v == t1}, {t1: len(group1)}) or \
-                       not self._feasible_with([g for g in group2], t2, {k: v for k, v in new_assign.items() if v == t2}, {t2: len(group2)}):
+                    if not self._feasible_with(group1, t1, {k: v for k, v in new_assign.items() if v == t1}, {t1: len(group1)}):
                         continue
-                    # Score old vs new using total table scores
+                    if not self._feasible_with(group2, t2, {k: v for k, v in new_assign.items() if v == t2}, {t2: len(group2)}):
+                        continue
+                    # Score improvement
                     old1 = compute_table_stats([n for n, t in assignments.items() if t == t1], self.get_relationship)["total_score"]
                     old2 = compute_table_stats([n for n, t in assignments.items() if t == t2], self.get_relationship)["total_score"]
                     new1 = compute_table_stats(group1, self.get_relationship)["total_score"]
@@ -241,14 +293,11 @@ class SeatingModel:
                     if new1 + new2 > old1 + old2:
                         assignments = new_assign
                         improved = True
-            if improved:
-                print(f"[DEBUG] Local optimization improved an assignment")
         return assignments
 
     # ----------------------------- main solve -----------------------------
     def solve(self) -> Dict[str, str]:
         """Assign guests to tables using beam search with greedy fallback."""
-        print("[DEBUG] SeatingModel.solve() called")
         groups = self._build_groups()
 
         # Optional regrouping: by meal
@@ -266,7 +315,6 @@ class SeatingModel:
             singles = [g for g in self.guests if getattr(g, "single", False) and not getattr(g, "plus_one", False)]
             singles_names = {g.name for g in singles}
             non_single_groups = [g for g in groups if not any(n in singles_names for n in g)]
-            # naive singles clustering: put in small bundles of size 2 or 3
             s = sorted(list(singles_names))
             singles_groups = [s[i:i + 3] for i in range(0, len(s), 3)]
             groups = non_single_groups + singles_groups

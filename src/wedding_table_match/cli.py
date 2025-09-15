@@ -23,7 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-known", type=int, default=0,
                         help="Soft target for minimum known neighbors per guest.")
     parser.add_argument("--maximize-known", action="store_true",
-                        help="Bias scoring toward known relationships where data is sparse.")
+                        help="Bias scoring toward positive relationships where data is sparse.")
+    parser.add_argument("--min-unknown", type=int, default=0,
+                        help="Soft lower bound of unknown neighbors per guest at their table.")
+    parser.add_argument("--max-unknown", type=int, default=3,
+                        help="Soft upper bound of unknown neighbors per guest at their table.")
     parser.add_argument("--out-assignments", type=Path,
                         help="Write assignments CSV: guest,table.")
     parser.add_argument("--out-report", type=Path,
@@ -42,6 +46,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         maximize_known=args.maximize_known,
         group_singles=args.group_singles,
         min_known=args.min_known,
+        min_unknown=args.min_unknown,
+        max_unknown=args.max_unknown,
         group_by_meal_preference=getattr(args, "group_by_meal_preference", False),
     )
     model.build(guests, tables, relationships)
@@ -75,7 +81,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     graded = grade_tables(stats)
 
-    # Print a compact table summary
+    # Print a compact summary
     for s in graded:
         print(f"[REPORT] {s['table']} grade={s['grade']} mean={s['mean_score']:.2f} "
               f"pairs={s['pair_count']} pos={s['pos_pairs']} neg={s['neg_pairs']} neu={s['neu_pairs']}")
@@ -102,5 +108,5 @@ def main(argv: Sequence[str] | None = None) -> None:
                 })
 
 
-if __name__ == "__main__":  # pragma: no cover - CLI entry point
+if __name__ == "__main__":  # pragma: no cover
     main()
