@@ -15,6 +15,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--relationships", required=True, help="Path to relationships.csv"
     )
     parser.add_argument("--tables", required=True, help="Path to tables.csv")
+    parser.add_argument(
+        "--group-by-meal-preference",
+        action="store_true",
+        help="Group guests by meal preference when assigning tables."
+    )
     return parser
 
 
@@ -26,7 +31,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     guests, relationships, tables = load_all(
         args.guests, args.relationships, args.tables
     )
-    model = SeatingModel()
+    model = SeatingModel(group_by_meal_preference=getattr(args, "group_by_meal_preference", False))
     model.build(guests, tables, relationships)
     assignments = model.solve()
 

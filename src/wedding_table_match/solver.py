@@ -15,7 +15,7 @@ class SeatingModel:
     It is intentionally small and easy to understand rather than optimal.
     """
 
-    def __init__(self, maximize_known: bool = False, group_singles: bool = False, min_known: int = 0) -> None:
+    def __init__(self, maximize_known: bool = False, group_singles: bool = False, min_known: int = 0, group_by_meal_preference: bool = False) -> None:
         self.guests: List[Guest] = []
         self.tables: List[Table] = []
         self.relationships: Dict[Tuple[str, str], Relationship] = {}
@@ -23,6 +23,7 @@ class SeatingModel:
         self.maximize_known = maximize_known
         self.group_singles = group_singles
         self.min_known = min_known
+        self.group_by_meal_preference = group_by_meal_preference
         # Maps to reconcile id/name differences across inputs
         self.id_by_name: Dict[str, str] = {}
         self.name_by_id: Dict[str, str] = {}
@@ -164,12 +165,45 @@ class SeatingModel:
         """
         groups = self._build_groups()
 
-        # Optionally group singles together
+        # Optionally group by meal preference
+        if self.group_by_meal_preference:
+            meal_groups = {}
+            for g in groups:
+                for name in g:
+                    guest = next((guest for guest in self.guests if guest.name == name), None)
+                    if guest:
+                        meal = getattr(guest, "meal_preference", "")
+                        meal_groups.setdefault(meal, []).append(name)
+            # Only use non-empty groups
+            groups = [sorted(members) for members in meal_groups.values() if members]
+
+        # Optionally group singles together by preference
         if self.group_singles:
-            singles = [g.name for g in self.guests if getattr(g, "single", False)]
-            non_singles = [g for g in groups if not any(name in singles for name in g)]
-            if singles:
-                groups = non_singles + [singles]
+            singles_guests = [g for g in self.guests if getattr(g, "single", False)]
+            # Group singles by interested_in and gender_identity compatibility
+            singles_groups: List[List[str]] = []
+            used = set()
+            for i, g1 in enumerate(singles_guests):
+                if g1.name in used:
+                    continue
+                group = [g1.name]
+                used.add(g1.name)
+                for j, g2 in enumerate(singles_guests):
+                    if i == j or g2.name in used:
+                        continue
+                    # Check if g1 and g2 are mutually interested
+                    if (
+                        g2.gender_identity in g1.interested_in or not g1.interested_in
+                    ) and (
+                        g1.gender_identity in g2.interested_in or not g2.interested_in
+                    ):
+                        group.append(g2.name)
+                        used.add(g2.name)
+                singles_groups.append(group)
+            # Remove singles from other groups
+            non_singles = [g for g in groups if not any(name in [sg.name for sg in singles_guests] for name in g)]
+            if singles_groups:
+                groups = non_singles + singles_groups
 
         # Beam search state: (assignments, table_slots, cumulative_score)
         from heapq import nlargest

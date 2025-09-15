@@ -128,6 +128,11 @@ group_singles = st.sidebar.checkbox(
     value=False,
     help="Try to seat single guests at the same table if possible.",
 )
+group_by_meal_preference = st.sidebar.checkbox(
+    "Group guests by meal preference",
+    value=False,
+    help="Try to seat guests with the same meal preference together if possible."
+)
 
 # -----------------------------
 # Main UI and previews
@@ -200,6 +205,7 @@ if run_clicked and not run_disabled:
         if guests_df_run is None or tables_df_run is None or rel_df_run is None:
             st.error("One or more input files could not be read. Please upload valid CSV files.")
             st.stop()
+            group_by_meal_preference=group_by_meal_preference,
 
         # Normalize ids for validation parity
         if "id" in guests_df_run.columns:
