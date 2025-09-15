@@ -290,6 +290,7 @@ class SeatingModel:
             if best_table is None:
                 raise ValueError("No valid table for group (even with relaxed constraints): " + ", ".join(group))
             for member in group:
-                assignments[member] = best_table
+                # Mark fallback assignments with an asterisk
+                assignments[member + "*"] = best_table
                 table_slots[best_table] -= 1
         return assignments

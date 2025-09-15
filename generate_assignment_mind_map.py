@@ -25,11 +25,14 @@ def generate_assignment_mind_map(assignments, guests, relationships):
         a, b = str(rel.a).strip(), str(rel.b).strip()
         if a in G and b in G:
             edge_label = str(rel.relation) if hasattr(rel, 'relation') else ""
-            if hasattr(rel, 'strength') and rel.strength:
-                edge_label += f" ({rel.strength})"
-            G.add_edge(a, b, label=edge_label)
+            strength = getattr(rel, 'strength', 0)
+            if strength:
+                edge_label += f" ({strength})"
+            # Set edge width: min 1, max 8 (scale strength 0-5 to 1-8)
+            width = 1 + min(max(int(strength), 0), 5) * 1.4 if strength else 1
+            G.add_edge(a, b, label=edge_label, width=width)
     # Create pyvis network
-    net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white")
+    net = Network(height="600px", width="100%", bgcolor="#222222")
     net.from_nx(G)
     # Improve physics for clarity
     net.force_atlas_2based()
