@@ -1,4 +1,3 @@
-# /Users/macallansavett/code/WeddingTableMatch/src/wedding_table_match/cli.py
 """Command line interface for WeddingTableMatch."""
 from __future__ import annotations
 
@@ -16,6 +15,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--guests", required=True, help="Path to guests.csv")
     parser.add_argument("--relationships", required=True, help="Path to relationships.csv")
     parser.add_argument("--tables", required=True, help="Path to tables.csv")
+
+    # Behavior knobs
     parser.add_argument("--group-by-meal-preference", action="store_true",
                         help="Group guests by meal preference when assigning tables.")
     parser.add_argument("--group-singles", action="store_true",
@@ -24,10 +25,16 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Soft target for minimum known neighbors per guest.")
     parser.add_argument("--maximize-known", action="store_true",
                         help="Bias scoring toward positive relationships where data is sparse.")
-    parser.add_argument("--min-unknown", type=int, default=0,
-                        help="Soft lower bound of unknown neighbors per guest at their table.")
-    parser.add_argument("--max-unknown", type=int, default=3,
-                        help="Soft upper bound of unknown neighbors per guest at their table.")
+
+    # Equalization
+    parser.add_argument("--equalize-tables", action="store_true",
+                        help="Strongly encourage near-equal table sizes.")
+    parser.add_argument("--balance-weight", type=float, default=12.0,
+                        help="Strength of size balancing. Larger is stronger.")
+    parser.add_argument("--min-target-slack", type=int, default=0,
+                        help="Ignore size penalties within this many seats around the target.")
+
+    # Outputs
     parser.add_argument("--out-assignments", type=Path,
                         help="Write assignments CSV: guest,table.")
     parser.add_argument("--out-report", type=Path,
@@ -46,9 +53,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         maximize_known=args.maximize_known,
         group_singles=args.group_singles,
         min_known=args.min_known,
-        min_unknown=args.min_unknown,
-        max_unknown=args.max_unknown,
-        group_by_meal_preference=getattr(args, "group_by_meal_preference", False),
+        group_by_meal_preference=args.group_by_meal_preference,
+        equalize_tables=args.equalize_tables,
+        balance_weight=args.balance_weight,
+        min_target_slack=args.min_target_slack,
     )
     model.build(guests, tables, relationships)
     assignments = model.solve()
@@ -57,16 +65,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     for guest, table in sorted(assignments.items()):
         print(f"{guest},{table}")
 
-    # Optional outputs
-    if args.out_assignments:
-        args.out_assignments.parent.mkdir(parents=True, exist_ok=True)
-        with args.out_assignments.open("w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["guest", "table"])
-            for guest, table in sorted(assignments.items()):
-                w.writerow([guest, table])
-
-    # Build and optionally write a per-table report
+    # Per table report
     table_to_members = {}
     for guest, table in assignments.items():
         table_to_members.setdefault(table, []).append(guest)
@@ -81,7 +80,6 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     graded = grade_tables(stats)
 
-    # Print a compact summary
     for s in graded:
         print(f"[REPORT] {s['table']} grade={s['grade']} mean={s['mean_score']:.2f} "
               f"pairs={s['pair_count']} pos={s['pos_pairs']} neg={s['neg_pairs']} neu={s['neu_pairs']}")
