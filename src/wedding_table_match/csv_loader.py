@@ -49,6 +49,13 @@ def load_guests(path: Path | str | IO[Any]) -> List[Guest]:
             must_with=parse_pipe_list(row.get("must_with", "")),
             must_separate=parse_pipe_list(row.get("must_separate", "")),
             groups=parse_pipe_list(row.get("groups", "")),
+            hobbies=parse_pipe_list(row.get("hobbies", "")),
+            languages=parse_pipe_list(row.get("languages", "")),
+            relationship_status=row.get("relationship_status", ""),
+            forced_table=row.get("forced_table", ""),
+            location=row.get("location", ""),
+            diet_choices=parse_pipe_list(row.get("diet_choices", "")),
+            partner=row.get("partner", ""),
         )
         guests.append(guest)
 
