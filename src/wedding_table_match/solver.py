@@ -88,6 +88,13 @@ class SeatingModel:
         equalize_tables: bool = False,
         balance_weight: float = 12.0,
         min_target_slack: int = 0,
+        match_hobbies: bool = False,
+        match_languages: bool = False,
+        match_age: bool = False,
+        match_relationship_status: bool = False,
+        match_location: bool = False,
+        match_diet: bool = False,
+        respect_forced_table: bool = False,
     ) -> None:
         self.guests: List[Guest] = []
         self.tables: List[Table] = []
@@ -106,6 +113,15 @@ class SeatingModel:
 
         self.id_by_name: Dict[str, str] = {}
         self.name_by_id: Dict[str, str] = {}
+
+        # New toggles for matching criteria
+        self.match_hobbies = match_hobbies
+        self.match_languages = match_languages
+        self.match_age = match_age
+        self.match_relationship_status = match_relationship_status
+        self.match_location = match_location
+        self.match_diet = match_diet
+        self.respect_forced_table = respect_forced_table
 
     # ----------------------------- build -----------------------------
     def build(
@@ -214,6 +230,12 @@ class SeatingModel:
     def _feasible_with(self, group: List[str], table_name: str, assignments: Dict[str, str], table_slots: Dict[str, int]) -> bool:
         if table_slots[table_name] < len(group):
             return False
+        # Enforce forced table assignment if enabled
+        if self.respect_forced_table:
+            for name in group:
+                guest = next((g for g in self.guests if g.name == name), None)
+                if guest and guest.forced_table and guest.forced_table != table_name:
+                    return False
         existing = [name for name, t in assignments.items() if t == table_name]
         combined = existing + group
         for a, b in combinations(combined, 2):
@@ -240,6 +262,42 @@ class SeatingModel:
         old_total = compute_table_stats(existing, self.get_relationship)["total_score"] if len(existing) >= 2 else 0
         new_total = compute_table_stats(combined, self.get_relationship)["total_score"]
         delta = float(new_total - old_total)
+
+        # New: Add scoring for hobbies, languages, age, relationship status, location, diet
+        if self.match_hobbies or self.match_languages or self.match_age or self.match_relationship_status or self.match_location or self.match_diet:
+            guests_by_name = {g.name: g for g in self.guests}
+            for a, b in combinations(combined, 2):
+                ga = guests_by_name.get(a)
+                gb = guests_by_name.get(b)
+                if not ga or not gb:
+                    continue
+                # Hobbies
+                if self.match_hobbies and ga.hobbies and gb.hobbies:
+                    shared = set(ga.hobbies) & set(gb.hobbies)
+                    if shared:
+                        delta += 1.5 * len(shared)
+                # Languages
+                if self.match_languages and ga.languages and gb.languages:
+                    shared = set(ga.languages) & set(gb.languages)
+                    if shared:
+                        delta += 1.0 * len(shared)
+                # Age range (within 5 years)
+                if self.match_age and ga.age and gb.age:
+                    if abs(ga.age - gb.age) <= 5:
+                        delta += 1.2
+                # Relationship status
+                if self.match_relationship_status and ga.relationship_status and gb.relationship_status:
+                    if ga.relationship_status == gb.relationship_status:
+                        delta += 0.8
+                # Location
+                if self.match_location and ga.location and gb.location:
+                    if ga.location == gb.location:
+                        delta += 0.7
+                # Diet choices
+                if self.match_diet and ga.diet_choices and gb.diet_choices:
+                    shared = set(ga.diet_choices) & set(gb.diet_choices)
+                    if shared:
+                        delta += 0.5 * len(shared)
 
         # Small bonus for meeting min_known
         if self.min_known > 0:
