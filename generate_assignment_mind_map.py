@@ -14,26 +14,26 @@ def generate_assignment_mind_map(
     assignments: Dict[str, str],
     guests: Iterable,
     relationships: Iterable,
-    layout: str = "round",              # "round", "square", "rectangle"
+    layout: str = "round",              # "round", "square", "rectangle"; can be set from sidebar UI
     show_neutral_edges: bool = False,
     show_inter_table_edges: bool = False,
     canvas_size: Tuple[int, int] = (1600, 1000),
 ) -> str:
     """
-    Build an interactive seating visualization.
+        Build an interactive seating visualization.
 
-    Parameters:
-      assignments: dict of guest identifier or name to table name.
-      guests: iterable of Guest dataclass.
-      relationships: iterable of Relationship dataclass.
-      layout: "round", "square", or "rectangle".
-      show_neutral_edges: include neutral edges if True.
-      show_inter_table_edges: include edges between different tables if True.
-      canvas_size: width, height in pixels for layout scaling.
+        Parameters:
+            assignments: dict of guest identifier or name to table name.
+            guests: iterable of Guest dataclass.
+            relationships: iterable of Relationship dataclass.
+            layout: "round", "square", or "rectangle". This can be set from the sidebar UI for interactive shape selection.
+            show_neutral_edges: include neutral edges if True.
+            show_inter_table_edges: include edges between different tables if True.
+            canvas_size: width, height in pixels for layout scaling.
 
-    Returns:
-      HTML string with embedded network.
-    """
+        Returns:
+            HTML string with embedded network.
+        """
     guest_by_id, id_by_name = _build_guest_lookups(guests)
 
     # Normalize assignment keys to guest ids
