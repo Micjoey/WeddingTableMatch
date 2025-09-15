@@ -191,11 +191,18 @@ group_by_meal_preference = st.sidebar.checkbox(
 # Main UI and previews
 # -----------------------------
 
+
 st.title("Wedding Table Match")
 
-_guests_file = st.file_uploader("Guests CSV", type="csv")
-_relationships_file = st.file_uploader("Relationships CSV", type="csv")
-_tables_file = st.file_uploader("Tables CSV", type="csv")
+# For testing: auto-set CSVs from local paths
+import io
+_guests_file = open("/Users/macallansavett/Downloads/guests.csv", "rb")
+_relationships_file = open("/Users/macallansavett/Downloads/relationships.csv", "rb")
+_tables_file = open("/Users/macallansavett/Downloads/tables.csv", "rb")
+# If you want to use the uploaders, comment out the above and uncomment below:
+# _guests_file = st.file_uploader("Guests CSV", type="csv")
+# _relationships_file = st.file_uploader("Relationships CSV", type="csv")
+# _tables_file = st.file_uploader("Tables CSV", type="csv")
 
 guests_df = rel_df = tables_df = None
 guests_valid = rel_valid = tables_valid = False
