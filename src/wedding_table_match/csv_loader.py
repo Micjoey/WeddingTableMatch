@@ -23,17 +23,26 @@ def load_guests(path: Path | str | IO[Any]) -> List[Guest]:
     df = pd.read_csv(path)
     guests: List[Guest] = []
     for _, row in df.iterrows():
+        gender_identity = row.get("gender_identity", "")
+        # Fallback for legacy CSVs: use 'gender' if 'gender_identity' is missing
+        if not gender_identity and "gender" in row:
+            gender_identity = row.get("gender", "")
+        plus_one_val = row.get("plus_one", "false")
+        plus_one = parse_bool(plus_one_val)
+        # Only set sit_with_partner if plus_one is true
+        sit_with_partner_val = row.get("sit_with_partner", "true")
+        sit_with_partner = parse_bool(sit_with_partner_val) if plus_one else False
         guest = Guest(
             id=str(row["id"]),
             name=row["name"],
             age=int(row.get("age", 0)),
-            gender_identity=row.get("gender_identity", ""),
+            gender_identity=gender_identity,
             rsvp=row.get("rsvp", ""),
             meal_preference=row.get("meal_preference", ""),
             single=parse_bool(row.get("single", "false")),
             interested_in=parse_pipe_list(row.get("interested_in", "")),
-            plus_one=parse_bool(row.get("plus_one", "false")),
-            sit_with_partner=parse_bool(row.get("sit_with_partner", "true")),
+            plus_one=plus_one,
+            sit_with_partner=sit_with_partner,
             min_known=int(row.get("min_known", 0)),
             min_unknown=int(row.get("min_unknown", 0)),
             weight=int(row.get("weight", 1)),

@@ -179,6 +179,10 @@ class SeatingModel:
         must_with, must_separate, avoid and min_known. Falls back to
         a relaxed greedy pass if strict placement fails.
         """
+        print("[DEBUG] SeatingModel.solve() called")
+        print("[DEBUG] All guests loaded:")
+        for g in self.guests:
+            print(f"  - {g.name}: single={getattr(g, 'single', None)}, interested_in={getattr(g, 'interested_in', None)}, gender_identity={getattr(g, 'gender_identity', None)}")
         groups = self._build_groups()
 
         # Optionally group by meal preference
@@ -196,6 +200,7 @@ class SeatingModel:
         # Optionally group singles together by preference
         if self.group_singles:
             singles_guests = [g for g in self.guests if getattr(g, "single", False)]
+            print("[DEBUG] singles_guests:", [g.name for g in singles_guests])
             # Group singles by interested_in and gender_identity compatibility
             singles_groups: List[List[str]] = []
             used = set()
@@ -216,10 +221,12 @@ class SeatingModel:
                         group.append(g2.name)
                         used.add(g2.name)
                 singles_groups.append(group)
+            print("[DEBUG] singles_groups:", singles_groups)
             # Remove singles from other groups
             non_singles = [g for g in groups if not any(name in [sg.name for sg in singles_guests] for name in g)]
             if singles_groups:
                 groups = non_singles + singles_groups
+            print("[DEBUG] Groups after singles grouping:", groups)
 
         # Beam search state: (assignments, table_slots, cumulative_score)
         from heapq import nlargest
@@ -229,16 +236,19 @@ class SeatingModel:
         beam_width = 5
 
         for group in groups:
+            print(f"[DEBUG] Considering group: {group}")
             next_beam: List[Tuple[Dict[str, str], Dict[str, int], int]] = []
             for assignments, table_slots, cum_score in beam:
                 # Consider all feasible tables for this group
                 candidates: List[Tuple[str, int]] = []
                 for table in self.tables:
                     feasible, delta = self._table_score(group, table.name, assignments, table_slots)
+                    print(f"[DEBUG]   Table '{table.name}': feasible={feasible}, score={delta}")
                     if feasible:
                         candidates.append((table.name, delta))
 
                 if not candidates:
+                    print(f"[DEBUG]   No feasible tables for group {group} in this beam state.")
                     continue
 
                 # Try top-k candidates for this state
@@ -249,10 +259,11 @@ class SeatingModel:
                     for member in group:
                         new_assignments[member] = table_name
                         new_slots[table_name] -= 1
+                    print(f"[DEBUG]   Assigning group {group} to table '{table_name}' with score {delta}")
                     next_beam.append((new_assignments, new_slots, cum_score + delta))
 
             if not next_beam:
-                # Could not place this group strictly in any beam state; break to fallback
+                print(f"[DEBUG] No beam states could place group {group}. Triggering fallback.")
                 beam = []
                 break
 
@@ -262,29 +273,36 @@ class SeatingModel:
 
         if beam:
             best_assignments, _, _ = max(beam, key=lambda s: s[2])
+            print(f"[DEBUG] Main assignment succeeded. Assignments: {best_assignments}")
             return best_assignments
 
         # Fallback: relaxed greedy similar to previous implementation
+        print("[DEBUG] Entering fallback assignment mode.")
         assignments: Dict[str, str] = {}
         table_slots = {t.name: t.capacity for t in self.tables}
         unassigned_groups = []
         for group in groups:
+            print(f"[DEBUG] [Fallback] Considering group: {group}")
             best_table = None
             best_score = -1
             for table in self.tables:
                 feasible, score = self._table_score(group, table.name, assignments, table_slots)
+                print(f"[DEBUG]   Table '{table.name}': feasible={feasible}, score={score}")
                 if feasible and score > best_score:
                     best_table = table.name
                     best_score = score
             if best_table is None:
+                print(f"[DEBUG]   No feasible table for group {group} in fallback. Will try relaxing constraints.")
                 unassigned_groups.append(group)
             else:
+                print(f"[DEBUG]   Assigning group {group} to table '{best_table}' with score {best_score}")
                 for member in group:
                     assignments[member] = best_table
                     table_slots[best_table] -= 1
 
         # Relax constraints for remaining groups (ignore must_separate/avoid/min_known)
         for group in unassigned_groups:
+            print(f"[DEBUG] [Fallback Relaxed] Considering group: {group}")
             best_table = None
             best_score = -1
             for table in self.tables:
@@ -300,13 +318,17 @@ class SeatingModel:
                             score += rel.strength
                         elif rel.relation == "know":
                             score += 1
+                print(f"[DEBUG]   Table '{table.name}': relaxed score={score}")
                 if score > best_score:
                     best_table = table.name
                     best_score = score
             if best_table is None:
+                print(f"[DEBUG]   No valid table for group {group} even after relaxing constraints.")
                 raise ValueError("No valid table for group (even with relaxed constraints): " + ", ".join(group))
+            print(f"[DEBUG]   Assigning group {group} to table '{best_table}' with relaxed score {best_score} (asterisk)")
             for member in group:
                 # Mark fallback assignments with an asterisk
                 assignments[member + "*"] = best_table
                 table_slots[best_table] -= 1
+        print(f"[DEBUG] Final fallback assignments: {assignments}")
         return assignments

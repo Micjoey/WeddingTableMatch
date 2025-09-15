@@ -215,7 +215,7 @@ if _guests_file is not None:
     if "id" in guests_df.columns:
         guests_df["id"] = guests_df["id"].astype(str)
     st.subheader("Guests preview")
-    st.dataframe(guests_df, use_container_width=True)
+    st.dataframe(guests_df, width='stretch')
     guests_valid = validate_columns(guests_df, ["id", "name"], "guests.csv")
     _guests_file.seek(0)
 
@@ -227,7 +227,7 @@ if _relationships_file is not None:
         if c in rel_df.columns:
             rel_df[c] = rel_df[c].astype(str)
     st.subheader("Relationships preview")
-    st.dataframe(rel_df, use_container_width=True)
+    st.dataframe(rel_df, width='stretch')
     rel_valid = validate_columns(rel_df, ["guest1_id", "guest2_id", "relationship"], "relationships.csv")
     _relationships_file.seek(0)
 
@@ -235,7 +235,7 @@ if _relationships_file is not None:
 if _tables_file is not None:
     tables_df = pd.read_csv(_tables_file)
     st.subheader("Tables preview")
-    st.dataframe(tables_df, use_container_width=True)
+    st.dataframe(tables_df, width='stretch')
     tables_valid = validate_columns(tables_df, ["name", "capacity"], "tables.csv")
     _tables_file.seek(0)
 
@@ -265,7 +265,6 @@ if run_clicked and not run_disabled:
         if guests_df_run is None or tables_df_run is None or rel_df_run is None:
             st.error("One or more input files could not be read. Please upload valid CSV files.")
             st.stop()
-            group_by_meal_preference=group_by_meal_preference,
 
         # Normalize ids for validation parity
         if "id" in guests_df_run.columns:
@@ -304,7 +303,7 @@ if run_clicked and not run_disabled:
             .reset_index(drop=True)
         )
         st.subheader("Assignments")
-        st.dataframe(result_df, use_container_width=True)
+        st.dataframe(result_df, width='stretch')
 
         # Grouped summary per table with score and singles
         grouped = result_df.groupby("table")["guest"].apply(list).reset_index(name="guests_list")
@@ -327,7 +326,7 @@ if run_clicked and not run_disabled:
         grouped[["compatibility %", "grade", "# singles"]] = grouped["guests_list"].apply(lambda g: pd.Series(table_stats(g)))
         grouped = grouped.drop(columns=["guests_list"])
         st.subheader("Guests per table")
-        st.dataframe(grouped, use_container_width=True)
+        st.dataframe(grouped, width='stretch')
 
         # Download
         csv_bytes = result_df.to_csv(index=False).encode("utf-8")
