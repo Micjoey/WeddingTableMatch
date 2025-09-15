@@ -19,6 +19,43 @@ from .models import Guest, Table, Relationship
 
 
 class SeatingModel:
+    def _optimize_assignments(self, assignments, table_slots):
+        """Try to improve assignments by swapping pairs of guests between tables."""
+        improved = True
+        max_iter = 10
+        iter_count = 0
+        while improved and iter_count < max_iter:
+            improved = False
+            iter_count += 1
+            guest_list = list(assignments.keys())
+            for i in range(len(guest_list)):
+                for j in range(i+1, len(guest_list)):
+                    g1, g2 = guest_list[i], guest_list[j]
+                    t1, t2 = assignments[g1], assignments[g2]
+                    if t1 == t2:
+                        continue
+                    # Try swapping g1 and g2
+                    new_assignments = dict(assignments)
+                    new_assignments[g1], new_assignments[g2] = t2, t1
+                    # Check if both tables are still valid after swap
+                    group1 = [name for name, t in new_assignments.items() if t == t1]
+                    group2 = [name for name, t in new_assignments.items() if t == t2]
+                    valid1, score1 = self._table_score(group1, t1, new_assignments, table_slots)
+                    valid2, score2 = self._table_score(group2, t2, new_assignments, table_slots)
+                    if valid1 and valid2:
+                        # Compute old and new total scores
+                        old_group1 = [name for name, t in assignments.items() if t == t1]
+                        old_group2 = [name for name, t in assignments.items() if t == t2]
+                        _, old_score1 = self._table_score(old_group1, t1, assignments, table_slots)
+                        _, old_score2 = self._table_score(old_group2, t2, assignments, table_slots)
+                        old_total = old_score1 + old_score2
+                        new_total = score1 + score2
+                        if new_total > old_total:
+                            assignments = new_assignments
+                            improved = True
+            if improved:
+                print(f"[DEBUG] Local optimization: improved assignment in iteration {iter_count}")
+        return assignments
     """Greedy seating solver that honours simple relationship rules.
 
     The solver groups guests that must sit together, avoids placing guests
@@ -128,8 +165,10 @@ class SeatingModel:
         """Return (feasible, score) for seating ``group`` at ``table_name``.
         Uses the full relationship scale for scoring (maximize compatibility)."""
         if table_slots[table_name] < len(group):
+            print(f"[DEBUG][_table_score] Table '{table_name}' does not have enough slots for group {group}: {table_slots[table_name]} < {len(group)}")
             return False, 0
 
+        print(f"[DEBUG][_table_score] Checking group {group} at table '{table_name}' with assignments: {assignments} and table_slots: {table_slots}")
         score = 0
         table_members = [other for other, t in assignments.items() if t == table_name] + group
         # Check must_separate and avoid
@@ -138,28 +177,35 @@ class SeatingModel:
                 if other == member:
                     continue
                 if other in self.must_separate.get(member, set()):
+                    print(f"[DEBUG][_table_score] Group {group} cannot be seated at '{table_name}' because {member} must be separated from {other}.")
                     return False, 0
                 rel = self.get_relationship(member, other)
                 if rel.relation == "avoid":
+                    print(f"[DEBUG][_table_score] Group {group} cannot be seated at '{table_name}' because {member} must avoid {other}.")
                     return False, 0
         # Check min_known constraint
-        if self.min_known > 0:
+        # min_known is a soft preference: add bonus to score if met, but do not block assignment
+        # Singles groups (all members are single) can bypass min_known bonus/penalty logic
+        min_known_bonus = 0
+        is_singles_group = all(getattr(self._get_guest_obj(name), "single", False) for name in group)
+        if self.min_known > 0 and not is_singles_group:
             for member in group:
                 known_count = 0
                 for other in table_members:
                     if other == member:
                         continue
                     rel = self.get_relationship(member, other)
-                    if rel.relation == "know":
+                    if rel.relation in ("know", "friend", "best friend"):
                         known_count += 1
-                if known_count < self.min_known:
-                    return False, 0
+                if known_count >= self.min_known:
+                    min_known_bonus += 10  # Increased bonus for meeting min_known
+
         # Scoring: use full relationship scale
         relation_scale = {
             'best friend': 5,
             'friend': 3,
             'know': 2,
-            'neutral': 0,
+            'neutral': +1,  # Slightly positive to encourage all-neutral tables
             'avoid': -3,
             'conflict': -5,
         }
@@ -169,7 +215,16 @@ class SeatingModel:
                     continue
                 rel = self.get_relationship(member, other)
                 score += relation_scale.get(rel.relation, rel.strength if hasattr(rel, 'strength') else 0)
+        score += min_known_bonus
+        print(f"[DEBUG][_table_score] Group {group} can be seated at '{table_name}' with score {score} (min_known bonus: {min_known_bonus}).")
         return True, score
+
+    def _get_guest_obj(self, name: str):
+        # Helper to get Guest object by name
+        for g in self.guests:
+            if g.name == name:
+                return g
+        return None
 
     # ------------------------------------------------------------------
     def solve(self) -> Dict[str, str]:
@@ -183,6 +238,7 @@ class SeatingModel:
         print("[DEBUG] All guests loaded:")
         for g in self.guests:
             print(f"  - {g.name}: single={getattr(g, 'single', None)}, interested_in={getattr(g, 'interested_in', None)}, gender_identity={getattr(g, 'gender_identity', None)}")
+
         groups = self._build_groups()
 
         # Optionally group by meal preference
@@ -199,7 +255,7 @@ class SeatingModel:
 
         # Optionally group singles together by preference
         if self.group_singles:
-            singles_guests = [g for g in self.guests if getattr(g, "single", False)]
+            singles_guests = [g for g in self.guests if getattr(g, "single", False) and not getattr(g, "plus_one", False)]
             print("[DEBUG] singles_guests:", [g.name for g in singles_guests])
             # Group singles by interested_in and gender_identity compatibility
             singles_groups: List[List[str]] = []
@@ -227,6 +283,18 @@ class SeatingModel:
             if singles_groups:
                 groups = non_singles + singles_groups
             print("[DEBUG] Groups after singles grouping:", groups)
+
+        # After all grouping, split any group larger than the largest table into subgroups that fit
+        if self.tables:
+            max_table_size = max(t.capacity for t in self.tables)
+            split_groups = []
+            for group in groups:
+                if len(group) > max_table_size:
+                    for i in range(0, len(group), max_table_size):
+                        split_groups.append(group[i:i+max_table_size])
+                else:
+                    split_groups.append(group)
+            groups = split_groups
 
         # Beam search state: (assignments, table_slots, cumulative_score)
         from heapq import nlargest
@@ -272,63 +340,75 @@ class SeatingModel:
             beam = next_beam
 
         if beam:
-            best_assignments, _, _ = max(beam, key=lambda s: s[2])
+            best_assignments, best_table_slots, _ = max(beam, key=lambda s: s[2])
             print(f"[DEBUG] Main assignment succeeded. Assignments: {best_assignments}")
-            return best_assignments
+            # Local optimization step
+            optimized_assignments = self._optimize_assignments(best_assignments, best_table_slots)
+            print(f"[DEBUG] Optimized assignments: {optimized_assignments}")
+            return optimized_assignments
 
         # Fallback: relaxed greedy similar to previous implementation
         print("[DEBUG] Entering fallback assignment mode.")
         assignments: Dict[str, str] = {}
         table_slots = {t.name: t.capacity for t in self.tables}
         unassigned_groups = []
-        for group in groups:
-            print(f"[DEBUG] [Fallback] Considering group: {group}")
-            best_table = None
-            best_score = -1
-            for table in self.tables:
-                feasible, score = self._table_score(group, table.name, assignments, table_slots)
-                print(f"[DEBUG]   Table '{table.name}': feasible={feasible}, score={score}")
-                if feasible and score > best_score:
-                    best_table = table.name
-                    best_score = score
-            if best_table is None:
-                print(f"[DEBUG]   No feasible table for group {group} in fallback. Will try relaxing constraints.")
-                unassigned_groups.append(group)
+        max_table_size = max(t.capacity for t in self.tables) if self.tables else 0
+        def split_group_if_needed(group):
+            if len(group) > max_table_size:
+                return [group[i:i+max_table_size] for i in range(0, len(group), max_table_size)]
             else:
-                print(f"[DEBUG]   Assigning group {group} to table '{best_table}' with score {best_score}")
-                for member in group:
-                    assignments[member] = best_table
-                    table_slots[best_table] -= 1
+                return [group]
+
+        for group in groups:
+            for subgroup in split_group_if_needed(group):
+                print(f"[DEBUG] [Fallback] Considering group: {subgroup}")
+                best_table = None
+                best_score = -1
+                for table in self.tables:
+                    feasible, score = self._table_score(subgroup, table.name, assignments, table_slots)
+                    print(f"[DEBUG]   Table '{table.name}': feasible={feasible}, score={score}")
+                    if feasible and score > best_score:
+                        best_table = table.name
+                        best_score = score
+                if best_table is None:
+                    print(f"[DEBUG]   No feasible table for group {subgroup} in fallback. Will try relaxing constraints.")
+                    unassigned_groups.append(subgroup)
+                else:
+                    print(f"[DEBUG]   Assigning group {subgroup} to table '{best_table}' with score {best_score}")
+                    for member in subgroup:
+                        assignments[member] = best_table
+                        table_slots[best_table] -= 1
 
         # Relax constraints for remaining groups (ignore must_separate/avoid/min_known)
         for group in unassigned_groups:
-            print(f"[DEBUG] [Fallback Relaxed] Considering group: {group}")
-            best_table = None
-            best_score = -1
-            for table in self.tables:
-                if table_slots[table.name] < len(group):
-                    continue
-                score = 0
-                for member in group:
-                    for other, other_table in assignments.items():
-                        if other_table != table.name:
-                            continue
-                        rel = self.get_relationship(member, other)
-                        if self.maximize_known and rel.relation == "know":
-                            score += rel.strength
-                        elif rel.relation == "know":
-                            score += 1
-                print(f"[DEBUG]   Table '{table.name}': relaxed score={score}")
-                if score > best_score:
-                    best_table = table.name
-                    best_score = score
-            if best_table is None:
-                print(f"[DEBUG]   No valid table for group {group} even after relaxing constraints.")
-                raise ValueError("No valid table for group (even with relaxed constraints): " + ", ".join(group))
-            print(f"[DEBUG]   Assigning group {group} to table '{best_table}' with relaxed score {best_score} (asterisk)")
-            for member in group:
-                # Mark fallback assignments with an asterisk
-                assignments[member + "*"] = best_table
-                table_slots[best_table] -= 1
+            for subgroup in split_group_if_needed(group):
+                print(f"[DEBUG] [Fallback Relaxed] Considering group: {subgroup}")
+                best_table = None
+                best_score = -1
+                for table in self.tables:
+                    if table_slots[table.name] < len(subgroup):
+                        continue
+                    score = 0
+                    for member in subgroup:
+                        for other, other_table in assignments.items():
+                            if other_table != table.name:
+                                continue
+                            rel = self.get_relationship(member, other)
+                            if self.maximize_known and rel.relation == "know":
+                                score += rel.strength
+                            elif rel.relation == "know":
+                                score += 1
+                    print(f"[DEBUG]   Table '{table.name}': relaxed score={score}")
+                    if score > best_score:
+                        best_table = table.name
+                        best_score = score
+                if best_table is None:
+                    print(f"[DEBUG]   No valid table for group {subgroup} even after relaxing constraints.")
+                    raise ValueError("No valid table for group (even with relaxed constraints): " + ", ".join(subgroup))
+                print(f"[DEBUG]   Assigning group {subgroup} to table '{best_table}' with relaxed score {best_score} (asterisk)")
+                for member in subgroup:
+                    # Mark fallback assignments with an asterisk
+                    assignments[member + "*"] = best_table
+                    table_slots[best_table] -= 1
         print(f"[DEBUG] Final fallback assignments: {assignments}")
         return assignments

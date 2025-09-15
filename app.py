@@ -28,16 +28,16 @@ def compute_table_score_and_singles(guest_names, guests, relationships):
     ids = [name_to_id.get(name, name) for name in guest_names]
     n = len(ids)
     if n < 2:
-        return 1.0, 0, True  # trivially perfect, 0 singles, no conflicts
+        return 1.0, 0, []  # trivially perfect, 0 singles, no conflicts
     total = 0
     max_total = 0
-    has_conflict = False
+    # has_conflict variable removed (was unused)
     for i in range(n):
         for j in range(i+1, n):
             s = rel_map.get((ids[i], ids[j]), 0)
             rel_type = rel_type_map.get((ids[i], ids[j]), '')
-            if rel_type in ('conflict', 'avoid'):
-                has_conflict = True
+            # if rel_type in ('conflict', 'avoid'):
+            #     has_conflict = True
             total += s
             max_total += 5  # max possible is both are best friends
     # Count singles
@@ -50,11 +50,9 @@ def compute_table_score_and_singles(guest_names, guests, relationships):
         if guest and getattr(guest, 'single', False):
             single_count += 1
     # Score can be negative, so scale to 0-1 for percent
-    percent = (total + max_total) / (2 * max_total) if max_total else 1.0
-    return percent, single_count, has_conflict
-
-
-# Add src to sys.path so wedding_table_match can be found
+    # Always return a tuple with three elements, third is a list of conflicts (empty if none)
+    percent = (total / max_total) if max_total > 0 else 1.0
+    return percent, single_count, []
 import sys
 import os
 import io
@@ -63,12 +61,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-
-from wedding_table_match.csv_loader import (
-    load_guests,
-    load_relationships,
-    load_tables,
-)
+from wedding_table_match.csv_loader import load_guests, load_tables, load_relationships
 from wedding_table_match.models import Table
 from wedding_table_match.solver import SeatingModel
 
@@ -122,10 +115,12 @@ def build_and_solve(
     guests_df: pd.DataFrame,
     tables_df: pd.DataFrame,
     rel_df: pd.DataFrame,
-    single_table: bool,
+    # single_table: bool,  # Removed
     maximize_known: bool,
     group_singles: bool,
     min_known: int,
+    group_by_meal_preference: bool = False,
+    meal_preference_groups: list[str] | None = None,
 ):
     """Run loaders, build model, and solve assignments."""
     # Convert DFs to CSV buffers for existing loaders
@@ -140,16 +135,13 @@ def build_and_solve(
     valid_ids = {str(getattr(g, "id")) for g in guests}
     relationships = load_relationships(rel_csv, valid_ids)
 
-    if single_table:
-        total_capacity = sum(t.capacity for t in tables)
-        if len(guests) > total_capacity:
-            raise ValueError("Not enough total capacity for a single table.")
-        tables = [Table(name="All", capacity=len(guests), tags=[])]
+    # Removed single_table logic
 
     model = SeatingModel(
         maximize_known=maximize_known,
         group_singles=group_singles,
         min_known=min_known,
+        group_by_meal_preference=group_by_meal_preference,
     )
     model.build(guests, tables, relationships)
     return guests, relationships, model.solve()
@@ -170,11 +162,6 @@ min_known = st.sidebar.number_input(
     max_value=20,
     value=2,
     help="Try to ensure each guest has at least this many known people at their table.",
-)
-single_table = st.sidebar.checkbox(
-    "Force all guests at one table",
-    value=False,
-    help="Assign everyone to a single table if capacity allows.",
 )
 group_singles = st.sidebar.checkbox(
     "Group single guests together",
@@ -288,7 +275,6 @@ if run_clicked and not run_disabled:
             guests_df_run,
             tables_df_run,
             rel_df_run,
-            single_table=single_table,
             maximize_known=maximize_known,
             group_singles=group_singles,
             min_known=min_known,

@@ -16,53 +16,60 @@ def generate_sample_wedding_csvs(downloads_dir=None):
     tables_path = os.path.join(downloads_dir, "tables.csv")
 
     # Sample data
-    guests = [
-        ["id", "name", "age", "gender", "gender_identity", "rsvp", "meal_preference", "plus_one", "sit_with_partner", "single", "interested_in"],
-        ["1", "Alice", "28", "F", "F", "yes", "vegetarian", "true", "true", "false", "M"],
-        ["2", "Bob", "32", "M", "M", "yes", "chicken", "false", "true", "true", "F"],
-        ["3", "Charlie", "35", "M", "M", "no", "beef", "false", "true", "false", "F"],
-        ["4", "Diana", "30", "F", "F", "yes", "fish", "true", "true", "true", "M"],
-        ["5", "Eve", "27", "F", "F", "yes", "vegetarian", "false", "true", "false", "M"],
-        ["6", "Frank", "40", "M", "M", "no", "chicken", "false", "true", "false", "F"],
-        ["7", "Grace", "29", "F", "F", "yes", "beef", "true", "true", "true", "F|M"],
-        ["8", "Hank", "33", "M", "M", "yes", "fish", "false", "true", "false", "F"],
-        ["9", "Ivy", "26", "F", "F", "yes", "vegetarian", "false", "true", "false", "M"],
-        ["10", "Jack", "31", "M", "M", "yes", "chicken", "true", "true", "true", "F"],
-        ["11", "Karen", "34", "F", "F", "no", "beef", "false", "true", "false", "M"],
-        ["12", "Leo", "38", "M", "M", "yes", "fish", "false", "true", "false", "F"],
-        ["13", "Mona", "25", "F", "F", "yes", "vegetarian", "true", "true", "false", "M"],
-        ["14", "Nina", "29", "F", "F", "yes", "chicken", "false", "true", "true", "F"],
-        ["15", "Oscar", "36", "M", "M", "no", "beef", "false", "true", "false", "F"],
-        ["16", "Paul", "37", "M", "M", "yes", "fish", "true", "true", "false", "F"],
-        ["17", "Quinn", "28", "F", "F", "yes", "vegetarian", "false", "true", "false", "M"],
-        ["18", "Rita", "32", "F", "F", "yes", "chicken", "false", "true", "true", "M"],
-        ["19", "Sam", "35", "M", "M", "no", "beef", "false", "true", "false", "F"],
-        ["20", "Tina", "30", "F", "F", "yes", "fish", "true", "true", "false", "M"],
+    import random
+    first_names = [
+        "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Hank", "Ivy", "Jack",
+        "Karen", "Leo", "Mona", "Nina", "Oscar", "Paul", "Quinn", "Rita", "Sam", "Tina",
+        "Uma", "Victor", "Wendy", "Xander", "Yara", "Zane", "Amy", "Ben", "Cara", "Dan",
+        "Ella", "Finn", "Gina", "Hugo", "Isla", "Jon", "Kira", "Liam", "Mia", "Noah",
+        "Olga", "Pete", "Queenie", "Rob", "Sara", "Tom", "Ursula", "Vince", "Will", "Xena",
+        "Yuri", "Zoe", "Ava", "Blake", "Cleo", "Derek", "Elsa", "Felix", "Gwen", "Harvey",
+        "Iris", "Jude", "Kara", "Lars", "Mila", "Nico", "Omar", "Pia", "Quentin", "Rosa",
+        "Seth", "Tara", "Ulric", "Vera", "Walt", "Ximena", "Yosef", "Zelda"
     ]
-    relationships = [
-        ["guest1_id", "guest2_id", "relationship"],
-        ["1", "2", "friend"],
-        ["1", "3", "friend"],
-        ["2", "4", "conflict"],
-        ["3", "5", "friend"],
-        ["4", "6", "friend"],
-        ["5", "7", "conflict"],
-        ["6", "8", "friend"],
-        ["7", "9", "friend"],
-        ["8", "10", "conflict"],
-        ["9", "11", "friend"],
-        ["1", "4", "best friend"],
-        ["2", "3", "avoid"],
-        ["5", "6", "neutral"],
-    ]
-    tables = [
-        ["name", "capacity"],
-        ["A", "4"],
-        ["B", "4"],
-        ["C", "4"],
-        ["D", "4"],
-        ["E", "4"],
-    ]
+    genders = ["M", "F"]
+    meal_prefs = ["chicken", "beef", "fish", "vegetarian", "vegan"]
+    guests = [["id", "name", "age", "gender", "gender_identity", "rsvp", "meal_preference", "plus_one", "sit_with_partner", "single", "interested_in"]]
+    for i in range(80):
+        name = first_names[i % len(first_names)]
+        gender = genders[i % 2]
+        age = random.randint(21, 65)
+        rsvp = "yes" if random.random() > 0.05 else "no"
+        meal = random.choice(meal_prefs)
+        # About 1/3 singles, 1/3 couples, 1/3 with plus_one
+        if i % 6 == 0:
+            plus_one = "false"
+            sit_with_partner = "false"
+            single = "true"
+            interested_in = "M|F"
+        elif i % 6 in (1, 2):
+            plus_one = "true"
+            sit_with_partner = "true"
+            single = "false"
+            interested_in = "F" if gender == "M" else "M"
+        else:
+            plus_one = "false"
+            sit_with_partner = "false"
+            single = "false"
+            interested_in = "F|M"
+        guests.append([
+            str(i+1), name, str(age), gender, gender, rsvp, meal, plus_one, sit_with_partner, single, interested_in
+        ])
+
+    # Generate dense, varied relationships
+    relationships = [["guest1_id", "guest2_id", "relationship"]]
+    rel_types = ["best friend"]*2 + ["friend"]*4 + ["know"]*8 + ["avoid"]*2 + ["conflict"]*2 + ["neutral"]*2
+    for i in range(1, 81):
+        # Each guest has 10-15 relationships
+        rel_ids = random.sample([j for j in range(1, 81) if j != i], random.randint(10, 15))
+        for j in rel_ids:
+            rel = random.choice(rel_types)
+            relationships.append([str(i), str(j), rel])
+
+    # 12 tables of 8 (96 seats for 80 guests)
+    tables = [["name", "capacity"]]
+    for t in range(12):
+        tables.append([chr(65+t), "8"])
 
     # Write CSVs
     with open(guests_path, "w", newline="") as f:
