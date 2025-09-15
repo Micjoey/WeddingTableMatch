@@ -12,6 +12,14 @@ from .solver import SeatingModel, grade_tables, compute_table_stats
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Wedding seating assignment")
+    # New toggles for matching criteria
+    parser.add_argument("--match-hobbies", action="store_true", help="Enable matching by hobbies.")
+    parser.add_argument("--match-languages", action="store_true", help="Enable matching by languages spoken.")
+    parser.add_argument("--match-age", action="store_true", help="Enable matching by age range.")
+    parser.add_argument("--match-relationship-status", action="store_true", help="Enable matching by relationship status (single/married/etc).")
+    parser.add_argument("--match-location", action="store_true", help="Enable matching by location.")
+    parser.add_argument("--match-diet", action="store_true", help="Enable matching by diet choices.")
+    parser.add_argument("--respect-forced-table", action="store_true", help="Force guests to assigned tables if specified.")
     parser.add_argument("--guests", required=True, help="Path to guests.csv")
     parser.add_argument("--relationships", required=True, help="Path to relationships.csv")
     parser.add_argument("--tables", required=True, help="Path to tables.csv")
@@ -57,6 +65,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         equalize_tables=args.equalize_tables,
         balance_weight=args.balance_weight,
         min_target_slack=args.min_target_slack,
+        match_hobbies=args.match_hobbies,
+        match_languages=args.match_languages,
+        match_age=args.match_age,
+        match_relationship_status=args.match_relationship_status,
+        match_location=args.match_location,
+        match_diet=args.match_diet,
+        respect_forced_table=args.respect_forced_table,
     )
     model.build(guests, tables, relationships)
     assignments = model.solve()
