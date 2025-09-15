@@ -53,6 +53,13 @@ class Guest:
     must_with: List[str] = field(default_factory=list)
     must_separate: List[str] = field(default_factory=list)
     groups: List[str] = field(default_factory=list)
+    hobbies: List[str] = field(default_factory=list)
+    languages: List[str] = field(default_factory=list)
+    relationship_status: str = ""
+    forced_table: str = ""
+    location: str = ""
+    diet_choices: List[str] = field(default_factory=list)
+    partner: str = ""  # Name or ID of partner, if any
 
 
 @dataclass
