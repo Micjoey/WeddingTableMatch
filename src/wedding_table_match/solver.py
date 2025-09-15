@@ -23,6 +23,9 @@ class SeatingModel:
         self.maximize_known = maximize_known
         self.group_singles = group_singles
         self.min_known = min_known
+        # Maps to reconcile id/name differences across inputs
+        self.id_by_name: Dict[str, str] = {}
+        self.name_by_id: Dict[str, str] = {}
 
     def build(
         self, guests: List[Guest], tables: List[Table], relationships: List[Relationship]
@@ -30,13 +33,35 @@ class SeatingModel:
         """Store model data for later solving."""
         self.guests = guests
         self.tables = tables
+        # Build id/name maps
+        self.id_by_name = {g.name: g.id for g in guests}
+        self.name_by_id = {g.id: g.name for g in guests}
+
         # Store relationships in both directions for easy lookup
+        # Index by both ids and names to be robust to CSV schema differences.
         self.relationships = {}
         for r in relationships:
-            self.relationships[(r.a, r.b)] = r
-            self.relationships[(r.b, r.a)] = Relationship(
-                a=r.b, b=r.a, relation=r.relation, strength=r.strength, notes=r.notes
-            )
+            a_variants = {r.a}
+            b_variants = {r.b}
+            # If provided ids, add corresponding names
+            if r.a in self.name_by_id:
+                a_variants.add(self.name_by_id[r.a])
+            # If provided names, add corresponding ids
+            if r.a in self.id_by_name:
+                a_variants.add(self.id_by_name[r.a])
+            if r.b in self.name_by_id:
+                b_variants.add(self.name_by_id[r.b])
+            if r.b in self.id_by_name:
+                b_variants.add(self.id_by_name[r.b])
+
+            for a_key in a_variants:
+                for b_key in b_variants:
+                    self.relationships[(a_key, b_key)] = Relationship(
+                        a=a_key, b=b_key, relation=r.relation, strength=r.strength, notes=r.notes
+                    )
+                    self.relationships[(b_key, a_key)] = Relationship(
+                        a=b_key, b=a_key, relation=r.relation, strength=r.strength, notes=r.notes
+                    )
         # Build symmetric must_separate map
         self.must_separate = {g.name: set(g.must_separate) for g in guests}
         for g in guests:
@@ -131,21 +156,67 @@ class SeatingModel:
 
     # ------------------------------------------------------------------
     def solve(self) -> Dict[str, str]:
-        """Assign guests to tables using a relationship aware heuristic.
-        If strict constraints fail, allow conflicts as a last resort.
-        Honors maximize_known and group_singles options."""
-        assignments: Dict[str, str] = {}
-        table_slots = {t.name: t.capacity for t in self.tables}
+        """Assign guests to tables with a relationship-aware beam search.
+
+        Uses a small beam to reduce greedy pitfalls while honoring
+        must_with, must_separate, avoid and min_known. Falls back to
+        a relaxed greedy pass if strict placement fails.
+        """
         groups = self._build_groups()
 
         # Optionally group singles together
         if self.group_singles:
-            singles = [g.name for g in self.guests if getattr(g, 'single', False)]
+            singles = [g.name for g in self.guests if getattr(g, "single", False)]
             non_singles = [g for g in groups if not any(name in singles for name in g)]
             if singles:
                 groups = non_singles + [singles]
 
-        # First pass: strict (no conflicts allowed)
+        # Beam search state: (assignments, table_slots, cumulative_score)
+        from heapq import nlargest
+
+        initial_slots = {t.name: t.capacity for t in self.tables}
+        beam: List[Tuple[Dict[str, str], Dict[str, int], int]] = [({}, initial_slots, 0)]
+        beam_width = 5
+
+        for group in groups:
+            next_beam: List[Tuple[Dict[str, str], Dict[str, int], int]] = []
+            for assignments, table_slots, cum_score in beam:
+                # Consider all feasible tables for this group
+                candidates: List[Tuple[str, int]] = []
+                for table in self.tables:
+                    feasible, delta = self._table_score(group, table.name, assignments, table_slots)
+                    if feasible:
+                        candidates.append((table.name, delta))
+
+                if not candidates:
+                    continue
+
+                # Try top-k candidates for this state
+                candidates.sort(key=lambda x: x[1], reverse=True)
+                for table_name, delta in candidates[:beam_width]:
+                    new_assignments = dict(assignments)
+                    new_slots = dict(table_slots)
+                    for member in group:
+                        new_assignments[member] = table_name
+                        new_slots[table_name] -= 1
+                    next_beam.append((new_assignments, new_slots, cum_score + delta))
+
+            if not next_beam:
+                # Could not place this group strictly in any beam state; break to fallback
+                beam = []
+                break
+
+            # Keep best beam_width states overall
+            next_beam = nlargest(beam_width, next_beam, key=lambda s: s[2])
+            beam = next_beam
+
+        if beam:
+            best_assignments, _, _ = max(beam, key=lambda s: s[2])
+            return best_assignments
+
+        # Fallback: relaxed greedy similar to previous implementation
+        assignments: Dict[str, str] = {}
+        table_slots = {t.name: t.capacity for t in self.tables}
         unassigned_groups = []
         for group in groups:
             best_table = None
@@ -162,15 +233,13 @@ class SeatingModel:
                     assignments[member] = best_table
                     table_slots[best_table] -= 1
 
-        # Second pass: relax constraints for unassigned groups (allow conflicts if needed)
+        # Relax constraints for remaining groups (ignore must_separate/avoid/min_known)
         for group in unassigned_groups:
             best_table = None
             best_score = -1
             for table in self.tables:
-                # Only check capacity, ignore must_separate/avoid
                 if table_slots[table.name] < len(group):
                     continue
-                # Score as before
                 score = 0
                 for member in group:
                     for other, other_table in assignments.items():
@@ -190,4 +259,3 @@ class SeatingModel:
                 assignments[member] = best_table
                 table_slots[best_table] -= 1
         return assignments
-

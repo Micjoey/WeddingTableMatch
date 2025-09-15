@@ -39,9 +39,14 @@ class Guest:
 
     id: str
     name: str
-    single: bool
-    gender_identity: str
+    age: int = 0
+    gender_identity: str = ""
+    rsvp: str = ""
+    meal_preference: str = ""
+    single: bool = False
     interested_in: List[str] = field(default_factory=list)
+    plus_one: bool = False
+    sit_with_partner: bool = True
     min_known: int = 0
     min_unknown: int = 0
     weight: int = 1
