@@ -127,6 +127,13 @@ class SeatingModel:
     def build(
         self, guests: List[Guest], tables: List[Table], relationships: List[Relationship]
     ) -> None:
+        # Capacity check
+        total_capacity = sum(t.capacity for t in tables)
+        if len(guests) > total_capacity:
+            raise ValueError(
+                f"Not enough capacity: {len(guests)} guests but only "
+                f"{total_capacity} seats across {len(tables)} tables"
+            )
         self.guests = guests
         self.tables = tables
         self.id_by_name = {g.name: g.id for g in guests}

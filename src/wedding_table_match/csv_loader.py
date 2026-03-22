@@ -1,27 +1,38 @@
-"""CSV loading utilities."""
+"""CSV loading utilities with validation."""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, List
+from typing import IO, Any, List, Set
 
 import pandas as pd
 
 from .models import Guest, Table, Relationship, parse_pipe_list, parse_bool
 
 
-def _ensure_path(path: Path | str) -> Path:
-    return Path(path)
+VALID_RELATIONSHIP_TYPES = {"best friend", "friend", "know", "neutral", "avoid", "conflict", "married"}
 
-
-from typing import IO, Any
 
 def load_guests(path: Path | str | IO[Any]) -> List[Guest]:
-    """Load guests from ``guests.csv``.
+    """Load guests from a CSV file or buffer.
 
-    Validates that any ``must_with`` and ``must_separate`` references exist.
+    Validates:
+    - No duplicate guest IDs
+    - All must_with and must_separate references exist
     """
     df = pd.read_csv(path)
     guests: List[Guest] = []
+
+    # Check for duplicate IDs
+    ids = df["id"].astype(str).tolist()
+    seen: Set[str] = set()
+    dupes: List[str] = []
+    for gid in ids:
+        if gid in seen:
+            dupes.append(gid)
+        seen.add(gid)
+    if dupes:
+        raise ValueError(f"Duplicate guest IDs: {', '.join(dupes)}")
+
     for _, row in df.iterrows():
         gender_identity = row.get("gender_identity", "")
         # Fallback for legacy CSVs: use 'gender' if 'gender_identity' is missing
@@ -29,7 +40,6 @@ def load_guests(path: Path | str | IO[Any]) -> List[Guest]:
             gender_identity = row.get("gender", "")
         plus_one_val = row.get("plus_one", "false")
         plus_one = parse_bool(plus_one_val)
-        # Only set sit_with_partner if plus_one is true
         sit_with_partner_val = row.get("sit_with_partner", "true")
         sit_with_partner = parse_bool(sit_with_partner_val) if plus_one else False
         guest = Guest(
@@ -68,7 +78,7 @@ def load_guests(path: Path | str | IO[Any]) -> List[Guest]:
 
 
 def load_tables(path: Path | str | IO[Any]) -> List[Table]:
-    """Load table definitions."""
+    """Load table definitions from a CSV file or buffer."""
     df = pd.read_csv(path)
     tables: List[Table] = []
     for _, row in df.iterrows():
@@ -82,25 +92,44 @@ def load_tables(path: Path | str | IO[Any]) -> List[Table]:
     return tables
 
 
-def load_relationships(path: Path | str | IO[Any], guest_names: set[str] | None = None) -> List[Relationship]:
+def load_relationships(
+    path: Path | str | IO[Any],
+    guest_names: set[str] | None = None,
+) -> List[Relationship]:
     """Load relationships between guests.
 
-    If ``guest_names`` is provided it validates that both endpoints exist.
+    Validates:
+    - Both endpoints exist (if guest_names provided)
+    - No self-referencing relationships
+    - Relationship type is recognized (warning, not error)
     """
     df = pd.read_csv(path)
     relationships: List[Relationship] = []
+    warnings: List[str] = []
+
     for _, row in df.iterrows():
         a = str(row["guest1_id"]).strip()
         b = str(row["guest2_id"]).strip()
+
+        # Self-reference check
+        if a == b:
+            raise ValueError(f"Self-referencing relationship: guest {a} related to itself")
+
+        # Guest existence check
         if guest_names:
             guest_names_stripped = set(str(g).strip() for g in guest_names)
             if a not in guest_names_stripped or b not in guest_names_stripped:
                 raise ValueError(f"Relationship references unknown guest: {a}, {b}")
+
+        relation = row.get("relationship", "neutral")
+        if relation not in VALID_RELATIONSHIP_TYPES:
+            warnings.append(f"Unrecognized relationship type '{relation}' between {a} and {b}")
+
         relationships.append(
             Relationship(
                 a=a,
                 b=b,
-                relation=row.get("relationship", "neutral"),
+                relation=relation,
                 strength=int(row.get("strength", 0)),
                 notes=row.get("notes", ""),
             )
@@ -108,10 +137,29 @@ def load_relationships(path: Path | str | IO[Any], guest_names: set[str] | None 
     return relationships
 
 
-def load_all(guests_path: Path | str, relationships_path: Path | str, tables_path: Path | str):
-    """Convenience wrapper returning guests, relationships and tables."""
+def validate_capacity(guests: List[Guest], tables: List[Table]) -> None:
+    """Raise ValueError if total table capacity is less than guest count."""
+    total_capacity = sum(t.capacity for t in tables)
+    guest_count = len(guests)
+    if guest_count > total_capacity:
+        raise ValueError(
+            f"Not enough table capacity: {guest_count} guests but only "
+            f"{total_capacity} seats across {len(tables)} tables"
+        )
+
+
+def load_all(
+    guests_path: Path | str,
+    relationships_path: Path | str,
+    tables_path: Path | str,
+):
+    """Convenience wrapper returning guests, relationships and tables.
+
+    Also validates that total capacity is sufficient.
+    """
     guests = load_guests(guests_path)
     guest_ids = {str(g.id) for g in guests}
     relationships = load_relationships(relationships_path, guest_ids)
     tables = load_tables(tables_path)
+    validate_capacity(guests, tables)
     return guests, relationships, tables

@@ -1,0 +1,5 @@
+guest1_id,guest2_id,relationship,strength,notes
+1,2,friend,3,Alice and Bob are friends
+1,3,know,2,Alice knows Carol
+2,3,neutral,0,Bob and Carol are neutral
+4,5,married,5,David and Eve are married
