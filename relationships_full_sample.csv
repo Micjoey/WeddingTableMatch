@@ -1,0 +1,15 @@
+guest1_id,guest2_id,relationship,strength,notes
+1,2,best friend,5,Married couple
+1,7,friend,3,College friends
+1,11,friend,3,Art class together
+2,8,know,2,Met at engagement party
+3,6,conflict,-5,Recently divorced
+3,7,friend,3,Travel buddies
+4,5,best friend,5,Married couple
+4,10,know,2,Work golf outings
+5,9,friend,3,Book club
+7,8,best friend,5,Couple (plus one)
+7,11,friend,3,Art collective
+9,10,best friend,5,Married couple
+9,1,friend,3,Bride's mother
+11,12,avoid,-3,Bad past breakup

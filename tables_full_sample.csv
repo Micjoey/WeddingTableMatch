@@ -1,0 +1,4 @@
+name,capacity,tags,shape,min_guests,position_x,position_y
+Table 1,5,Bridal Party|Friends,round,3,0,0
+Table 2,4,Friends|Mixed,round,3,2,0
+Table 3,5,Family|Parents|VIP,long,4,1,2

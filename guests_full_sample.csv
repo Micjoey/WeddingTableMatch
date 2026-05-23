@@ -1,0 +1,13 @@
+id,name,age,gender_identity,rsvp,meal_preference,single,interested_in,plus_one,sit_with_partner,min_known,min_unknown,weight,must_with,must_separate,groups,hobbies,languages,relationship_status,forced_table,location,diet_choices,partner,accessibility_needs,vip,notes
+1,Alice Chen,29,Female,Yes,Vegetarian,False,reading|hiking,False,True,1,1,1,Bob Chen,,Friends|Bridal Party,reading|yoga,English|Mandarin,married,,Brooklyn,vegetarian,2,,True,Maid of honor
+2,Bob Chen,31,Male,Yes,Chicken,False,sports|cooking,False,True,1,1,1,Alice Chen,,Friends|Bridal Party,cooking,English,married,,Brooklyn,none,1,,True,
+3,Carol Diaz,27,Female,Yes,Fish,True,travel|music,False,False,2,0,1,,Frank Diaz,Family,music|travel,Spanish|English,divorced,Table 2,Madrid,vegan,,,False,Recently divorced from Frank
+4,David Kim,35,Male,Yes,Beef,False,golf|wine,False,True,0,2,1,Eve Kim,,Work,golf,English|Korean,married,,Seoul,none,5,,False,
+5,Eve Kim,33,Female,Yes,Vegetarian,False,reading|wine,False,True,0,2,1,David Kim,,Work,reading,English|Korean,married,,Seoul,vegetarian,4,wheelchair,False,Wheelchair access at table
+6,Frank Diaz,40,Male,Yes,Beef,True,sports,False,False,1,1,1,,Carol Diaz,Family,sports,Spanish,divorced,,Madrid,none,,,False,Keep apart from Carol
+7,Grace Patel,26,Female,Yes,Fish,True,music|art,True,False,0,2,1,,,Friends,art|music,English|Hindi,single,,London,gluten-free,,,False,
+8,Henry Patel,28,Male,Yes,Chicken,False,music|gaming,True,True,1,0,1,,,Friends,gaming,English|Hindi,partnered,,London,none,,,False,Plus one of Grace
+9,Iris Nakamura,55,Female,Yes,Vegetarian,False,gardening,False,True,0,1,2,Jack Nakamura,,Family|Parents,gardening,Japanese|English,married,Table 3,Kyoto,vegetarian,10,hearing,True,Mother of bride
+10,Jack Nakamura,58,Male,Yes,Beef,False,golf|gardening,False,True,0,1,2,Iris Nakamura,,Family|Parents,golf,Japanese|English,married,Table 3,Kyoto,none,9,,True,Father of bride
+11,Kira Olsen,30,Non-binary,Yes,Vegan,True,art|activism,False,False,1,1,1,,,Friends,art,English|Norwegian,single,,Oslo,vegan,,,False,
+12,Liam O'Brien,32,Male,Maybe,Chicken,True,music|sports,False,False,0,2,1,,,Work,music,English,single,,Dublin,none,,,False,RSVP pending
