@@ -1,5 +1,13 @@
 # Codex Daily Automation Contract: Wedding Planner
 
+## Where to paste this
+Use this file in two places:
+
+1. **Automation Instructions field** in your Codex scheduled automation.
+   - Copy the contents under **"Codex Automation Prompt (copy/paste)"** into the instruction/prompt box.
+2. **Repository root file** (this file) as the source of truth.
+   - Keep `codex-automation-contract.md` committed so future runs can read/update against a stable contract.
+
 ## Schedule
 - **Run time:** 9:00 AM
 - **Timezone:** `America/Los_Angeles` (Pacific Time)
