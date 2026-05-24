@@ -1,0 +1,37 @@
+{
+  "date": "YYYY-MM-DD",
+  "feature_slice": {
+    "title": "",
+    "scope": "",
+    "out_of_scope": []
+  },
+  "success_criteria": [
+    {
+      "id": "SC-001",
+      "description": "",
+      "metric": "",
+      "target": "",
+      "status": "pending"
+    }
+  ],
+  "acceptance_checks": {
+    "unit_tests": {
+      "command": "UNIT_TEST_COMMAND",
+      "status": "pending"
+    },
+    "lint": {
+      "command": "LINT_COMMAND",
+      "status": "pending"
+    },
+    "ui_ux": {
+      "command": "UI_UX_COMMAND",
+      "status": "pending"
+    }
+  },
+  "implementation_plan": [],
+  "result_summary": {
+    "done": [],
+    "pending": [],
+    "blockers": []
+  }
+}
